@@ -338,6 +338,7 @@ const HARDCODED_URL = '';
 
 // ── STATE ───────────────────────────────────────────────────
 let URL_GAS = '', DATA = [], QUESTIONS = [], CHARTS = {}, lastUpdate = null;
+let AVAILABLE_SHEETS = [], CURRENT_SHEET = '';
 
 // ── NAV ─────────────────────────────────────────────────────
 function goTo(name) {
@@ -1597,9 +1598,6 @@ Documento confidencial. Elaborado con base en ${total} respuestas de ${totalArea
 // ══════════════════════════════════════════════════════════════
 // SELECTOR DE ENCUESTA
 // ══════════════════════════════════════════════════════════════
-let AVAILABLE_SHEETS = [];
-let CURRENT_SHEET = '';
-
 async function renderSelector() {
   const wrap = document.getElementById('sheetListWrap');
   if (!URL_GAS) {
