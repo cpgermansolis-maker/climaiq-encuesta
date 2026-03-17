@@ -1785,28 +1785,101 @@ async function ejecutarComparacion() {
       </div>`;
     }).join('');
 
+    // Build results with clean professional design
+    const diffColor = (val, invert) => {
+      if (Math.abs(val) < 0.05) return '#888';
+      return (val > 0) !== invert ? '#1A5C3A' : '#C0392B';
+    };
+    const diffArrow = (val, invert) => {
+      if (Math.abs(val) < 0.05) return '→';
+      return (val > 0) !== invert ? '▲' : '▼';
+    };
+    const metricRow = (label, vA, vB, fmtA, fmtB, invert) => {
+      const diff = vB - vA;
+      const color = diffColor(diff, invert);
+      const arrow = diffArrow(diff, invert);
+      const fmtDiff = Math.abs(diff) < 0.05 ? 'Sin cambio' : arrow + ' ' + (typeof fmtA === 'function' ? fmtA(Math.abs(diff)) : Math.abs(diff));
+      return `<tr>
+        <td style="padding:.75rem 1rem;font-size:.82rem;color:#444;border-bottom:1px solid #f0ece8;">${label}</td>
+        <td style="padding:.75rem 1rem;text-align:center;font-weight:700;font-size:.95rem;color:#1C3A5E;border-bottom:1px solid #f0ece8;">${typeof fmtA === 'function' ? fmtA(vA) : vA}</td>
+        <td style="padding:.75rem 1rem;text-align:center;font-weight:700;font-size:.95rem;color:#1C3A5E;border-bottom:1px solid #f0ece8;">${typeof fmtB === 'function' ? fmtB(vB) : vB}</td>
+        <td style="padding:.75rem 1rem;text-align:center;font-size:.82rem;font-weight:600;color:${color};border-bottom:1px solid #f0ece8;">${fmtDiff}</td>
+      </tr>`;
+    };
+
+    const n = v => v.toFixed(2);
+    const p = v => v + '%';
+
     res.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;padding:.8rem;background:var(--surface);border:1px solid var(--border);">
-        <div style="text-align:center;font-size:.7rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;">
-          ${nameA}<br><span style="font-size:1.2rem;color:var(--navy);font-weight:400">${dA.length} resp.</span>
+    <div style="margin-top:1.5rem;">
+
+      <!-- Header comparativa -->
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;background:#0B1F3A;color:#fff;border-radius:4px 4px 0 0;">
+        <div style="padding:.7rem 1rem;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);">Métrica</div>
+        <div style="padding:.7rem 1rem;text-align:center;font-size:.75rem;font-weight:700;color:#C09648;">${nameA}</div>
+        <div style="padding:.7rem 1rem;text-align:center;font-size:.75rem;font-weight:700;color:#C09648;">${nameB}</div>
+        <div style="padding:.7rem 1rem;text-align:center;font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);">Cambio</div>
+      </div>
+
+      <!-- Participantes banner -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;background:#f7f4ef;border:1px solid #e4ddd4;border-top:none;margin-bottom:.5rem;">
+        <div style="padding:.6rem 1rem;text-align:center;border-right:1px solid #e4ddd4;">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;">Participantes</div>
+          <div style="font-size:1.8rem;font-weight:400;font-family:Georgia,serif;color:#1C3A5E;">${dA.length}</div>
         </div>
-        <div style="text-align:center;font-size:.7rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;">
-          ${nameB}<br><span style="font-size:1.2rem;color:var(--navy);font-weight:400">${dB.length} resp.</span>
+        <div style="padding:.6rem 1rem;text-align:center;">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;">Participantes</div>
+          <div style="font-size:1.8rem;font-weight:400;font-family:Georgia,serif;color:#1C3A5E;">${dB.length}</div>
         </div>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);margin-bottom:1rem;">
-        <div style="padding:.6rem 1rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--border);">Métricas Generales</div>
-        ${row('Score Global (/4.0)', gA, gB, v=>v.toFixed(2), false)}
-        ${row('Respuestas Positivas (%)', pA, pB, v=>v+'%', false)}
-        ${row('Respuestas Negativas (%)', nA, nB, v=>v+'%', true)}
-        ${row('Áreas Críticas (< 2.3)', cA, cB, v=>v, true)}
-        ${row('Participantes', dA.length, dB.length, v=>v, false)}
+
+      <!-- Tabla métricas -->
+      <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e4ddd4;border-radius:0 0 4px 4px;overflow:hidden;">
+        <tbody>
+          ${metricRow('Score Global (/4.0)', gA, gB, n, n, false)}
+          ${metricRow('Respuestas Positivas', pA, pB, p, p, false)}
+          ${metricRow('Respuestas Negativas', nA, nB, p, p, true)}
+          ${metricRow('Áreas Críticas (< 2.3)', cA, cB, v=>v, v=>v, true)}
+        </tbody>
+      </table>
+
+      <!-- Semáforo visual -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-top:1rem;">
+        <div style="padding:1rem;background:#fff;border:1px solid #e4ddd4;border-top:3px solid ${gA>=3?'#1A5C3A':gA>=2.3?'#C09648':'#C0392B'};">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:.3rem;">${nameA}</div>
+          <div style="font-size:2rem;font-family:Georgia,serif;color:${gA>=3?'#1A5C3A':gA>=2.3?'#C09648':'#C0392B'};">${gA.toFixed(2)}</div>
+          <div style="font-size:.75rem;color:#666;">${gA>=3?'Satisfactorio':gA>=2.3?'En atención':'Crítico'}</div>
+        </div>
+        <div style="padding:1rem;background:#fff;border:1px solid #e4ddd4;border-top:3px solid ${gB>=3?'#1A5C3A':gB>=2.3?'#C09648':'#C0392B'};">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:.3rem;">${nameB}</div>
+          <div style="font-size:2rem;font-family:Georgia,serif;color:${gB>=3?'#1A5C3A':gB>=2.3?'#C09648':'#C0392B'};">${gB.toFixed(2)}</div>
+          <div style="font-size:.75rem;color:#666;">${gB>=3?'Satisfactorio':gB>=2.3?'En atención':'Crítico'}</div>
+        </div>
       </div>
+
       ${commonQs.length ? `
-      <div style="background:var(--surface);border:1px solid var(--border);">
-        <div style="padding:.6rem 1rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--border);">Comparación por Pregunta (${commonQs.length} en común)</div>
-        ${qRows}
-      </div>` : '<div class="banner" style="margin-top:1rem;">Las preguntas son diferentes entre encuestas — no hay comparación por pregunta disponible.</div>'}`;
+      <!-- Comparación por pregunta -->
+      <div style="margin-top:1rem;background:#fff;border:1px solid #e4ddd4;border-radius:4px;overflow:hidden;">
+        <div style="padding:.6rem 1rem;background:#f7f4ef;border-bottom:1px solid #e4ddd4;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;">
+          Comparación por Pregunta — ${commonQs.length} en común
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#faf7f2;">
+              <th style="padding:.6rem 1rem;text-align:left;font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888;border-bottom:1px solid #e4ddd4;">Pregunta</th>
+              <th style="padding:.6rem 1rem;text-align:center;font-size:.65rem;font-weight:700;color:#888;border-bottom:1px solid #e4ddd4;">${nameA}</th>
+              <th style="padding:.6rem 1rem;text-align:center;font-size:.65rem;font-weight:700;color:#888;border-bottom:1px solid #e4ddd4;">${nameB}</th>
+              <th style="padding:.6rem 1rem;text-align:center;font-size:.65rem;font-weight:700;color:#888;border-bottom:1px solid #e4ddd4;">Cambio</th>
+            </tr>
+          </thead>
+          <tbody>${qRows}</tbody>
+        </table>
+      </div>` : `
+      <div style="margin-top:1rem;padding:.8rem 1rem;background:#faf7f2;border:1px solid #e4ddd4;border-radius:4px;font-size:.8rem;color:#888;">
+        ℹ️ Las preguntas son diferentes entre encuestas — comparación general disponible únicamente.
+      </div>`}
+
+    </div>`;
   } catch(err) {
     res.innerHTML = '<div class="banner error">Error: ' + err.message + '</div>';
   }
