@@ -213,8 +213,44 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
 
 /* ── RESPONSIVE ── */
 @media(max-width:1100px) { .kpi-row { grid-template-columns:repeat(3,1fr); } }
-@media(max-width:900px) { .sidebar{display:none;} .kpi-row{grid-template-columns:1fr 1fr;} .grid-2,.alert-grid{grid-template-columns:1fr;} .grid-3{grid-template-columns:1fr 1fr;} }
-@media(max-width:600px) { .kpi-row{grid-template-columns:1fr 1fr;} .main{padding:1rem;} }
+/* ── SIDEBAR MOBILE OVERLAY ── */
+.sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99; }
+.sidebar-overlay.show { display:block; }
+.sidebar.mobile-open { display:flex !important; position:fixed; left:0; top:0; bottom:0; z-index:100; width:220px; box-shadow:4px 0 20px rgba(0,0,0,.3); }
+@media(max-width:900px) { #menuBtn { display:inline-block !important; } }
+
+/* ── MOBILE ── */
+@media(max-width:900px) {
+  .sidebar { display:none; }
+  .kpi-row { grid-template-columns:1fr 1fr; }
+  .grid-2, .alert-grid { grid-template-columns:1fr; }
+  .grid-3 { grid-template-columns:1fr 1fr; }
+  .topbar { padding:.5rem .8rem; flex-wrap:wrap; gap:.4rem; }
+  .tb-right { gap:.4rem; flex-wrap:wrap; }
+  .tb-btn { font-size:.68rem; padding:.3rem .6rem; }
+  .tb-title { font-size:.85rem; }
+  .tb-company { font-size:.72rem; }
+}
+@media(max-width:600px) {
+  .kpi-row { grid-template-columns:1fr 1fr; }
+  .main { padding:.8rem; }
+  .grid-3 { grid-template-columns:1fr; }
+  .ph { flex-direction:column; gap:.4rem; }
+  .ph-left h2 { font-size:1.3rem; }
+  /* Topbar móvil: ocultar botones PDF/Word, mostrar solo esenciales */
+  #btnPDF, #btnWord { display:none; }
+  .tb-status { font-size:.7rem; }
+  /* KPI cards más compactos */
+  .kpi { padding:.8rem; }
+  .kpi-val { font-size:1.6rem; }
+  .kpi-lbl { font-size:.55rem; }
+  /* Sidebar como menú hamburguesa */
+  .app { grid-template-columns:1fr; }
+  /* Tablas scroll horizontal */
+  .overflow-table { overflow-x:auto; }
+  /* Comparador */
+  .cmp-grid { grid-template-columns:1fr; }
+}
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -223,6 +259,7 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="tb-left">
+    <button id="menuBtn" onclick="toggleMenu()" style="display:none;background:none;border:none;cursor:pointer;padding:.3rem .5rem;font-size:1.2rem;color:#fff;margin-right:.4rem;" aria-label="Menú">☰</button>
     <div class="tb-logo">
       <svg viewBox="0 0 16 16"><path d="M8 2L2 6v8h4v-4h4v4h4V6z"/></svg>
     </div>
@@ -236,13 +273,14 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
       <div class="sdot" id="sdot"></div>
       <span id="stxt">Sin conectar</span>
     </div>
-    <button class="tb-btn" onclick="goTo('setup')">⚙ Configuración</button>
+    <button class="tb-btn" onclick="goTo('setup')" id="btnConfig">⚙ Configuración</button>
     <button class="tb-btn accent" id="btnRefresh" onclick="refresh()" disabled>↺ Actualizar</button>
     <button class="tb-btn" id="btnPDF" onclick="generarInformePDF()" disabled style="background:#1A5C3A;color:#fff;border-color:#1A5C3A;">📄 Informe PDF</button>
     <button class="tb-btn" id="btnWord" onclick="generarInformeWord()" disabled style="background:#2B5797;color:#fff;border-color:#2B5797;">📝 Exportar Word</button>
   </div>
 </div>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMenu()"></div>
 <div class="app">
   <!-- SIDEBAR -->
   <nav class="sidebar">
@@ -257,7 +295,7 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
     <div class="nav-item" onclick="goTo('selector')" id="nav-selector">📂 Elegir Encuesta</div>
     <div class="nav-item" onclick="goTo('comparar')" id="nav-comparar">📊 Comparar</div>
     <div class="nav-sec">Sistema</div>
-    <div class="nav-item" onclick="goTo('setup')" id="nav-setup">🔗 Conexión</div>
+    <div class="nav-item" onclick="goTo('setup')" id="nav-setup" style="display:none">🔗 Conexión</div>
     <div class="sb-foot">
       <div class="sb-stat" id="sbFoot">Sin datos</div>
     </div>
@@ -334,7 +372,7 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const HARDCODED_URL = '';
+const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbwJ6IorTO2ZOe_00a7ydf2Hj7T4xO60OYXiYSBmuwGW2mLY0Ao0YZWNSnHP1SVeO_lb/exec';
 
 // ── STATE ───────────────────────────────────────────────────
 let URL_GAS = '', DATA = [], QUESTIONS = [], CHARTS = {}, lastUpdate = null;
@@ -1033,8 +1071,14 @@ function wrapLabel(s, max) {
   const saved = HARDCODED_URL || localStorage.getItem('climaiq_gas_url') || '';
   if (saved) {
     URL_GAS = saved;
-    document.getElementById('urlInput').value = saved;
+    const urlInput = document.getElementById('urlInput');
+    if (urlInput) urlInput.value = saved;
     loadData();
+  }
+  // Si hay URL hardcodeada, ocultar botón de configuración
+  if (HARDCODED_URL) {
+    const btnConfig = document.getElementById('btnConfig');
+    if (btnConfig) btnConfig.style.display = 'none';
   }
 })();
 
@@ -1884,6 +1928,25 @@ async function ejecutarComparacion() {
     res.innerHTML = '<div class="banner error">Error: ' + err.message + '</div>';
   }
 }
+
+// ── MOBILE MENU ──────────────────────────────────────────────
+function toggleMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('show');
+}
+// Close menu when nav item clicked on mobile
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar.classList.contains('mobile-open')) {
+      sidebar.classList.remove('mobile-open');
+      overlay.classList.remove('show');
+    }
+  });
+});
 </script>
 </body>
 </html>
