@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Clima Laboral</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #F0EDE8;
+  --surface:  #FAFAF8;
+  --surface2: #F0EDE8;
+  --border:   #E2DDD8;
+  --ink:      #1C1A18;
+  --ink2:     #4A4642;
+  --ink3:     #9A9490;
+  --navy:     #1A2F4A;
+  --navy2:    #243D5C;
+  --gold:     #B8892A;
+  --gold-bg:  #FBF5E8;
+  --red:      #8B2A1F;
+  --red-bg:   #FAF0EE;
+  --amber:    #8A5210;
+  --amber-bg: #FDF5E8;
+  --green:    #1A5C3A;
+  --green-bg: #EBF5EF;
+  --blue:     #1A4A7A;
+  --blue-bg:  #EBF2FA;
+  --sh:       0 1px 4px rgba(26,24,20,.06), 0 4px 16px rgba(26,24,20,.06);
+  --sh-lg:    0 8px 32px rgba(26,24,20,.10);
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { font-size:14px; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; display:flex; flex-direction:column; }
+
+/* ── TOPBAR ── */
+.topbar { background:var(--navy); height:52px; display:flex; align-items:center; justify-content:space-between; padding:0 1.6rem; position:sticky; top:0; z-index:100; box-shadow:0 1px 0 rgba(255,255,255,.06), 0 4px 20px rgba(0,0,0,.25); }
+.tb-left { display:flex; align-items:center; gap:1rem; }
+.tb-logo { width:28px; height:28px; background:rgba(184,137,42,.2); border:1px solid rgba(184,137,42,.4); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.tb-logo svg { width:14px; height:14px; fill:var(--gold); }
+.tb-title { font-family:'DM Serif Display',serif; font-size:1rem; color:#fff; letter-spacing:.01em; }
+.tb-company { font-size:.68rem; color:rgba(255,255,255,.4); font-weight:400; margin-left:.4rem; }
+.tb-right { display:flex; align-items:center; gap:.8rem; }
+.tb-status { display:flex; align-items:center; gap:.5rem; font-size:.7rem; color:rgba(255,255,255,.4); padding-right:.8rem; border-right:1px solid rgba(255,255,255,.08); }
+.sdot { width:7px; height:7px; border-radius:50%; background:#555; flex-shrink:0; }
+.sdot.live { background:#4ade80; animation:blink 2.5s infinite; }
+.sdot.loading { background:var(--gold); animation:blink .6s infinite; }
+.sdot.err { background:#f87171; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.tb-btn { font-family:'DM Sans',sans-serif; font-size:.72rem; font-weight:500; padding:.35rem .85rem; border:1px solid rgba(255,255,255,.15); background:transparent; color:rgba(255,255,255,.7); cursor:pointer; transition:all .15s; letter-spacing:.03em; }
+.tb-btn:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.3); color:#fff; }
+.tb-btn.accent { background:rgba(184,137,42,.18); border-color:rgba(184,137,42,.35); color:#D4AA5A; }
+.tb-btn.accent:hover { background:rgba(184,137,42,.28); }
+
+/* ── LAYOUT ── */
+.app { display:flex; flex:1; height:calc(100vh - 52px); overflow:hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar { width:200px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; }
+.nav-sec { font-size:.58rem; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--ink3); padding:1.2rem 1rem .4rem; }
+.nav-item { display:flex; align-items:center; gap:.6rem; padding:.58rem 1rem; font-size:.8rem; font-weight:400; color:var(--ink2); cursor:pointer; border-left:2px solid transparent; transition:all .12s; position:relative; }
+.nav-item:hover { background:var(--surface2); color:var(--ink); }
+.nav-item.active { color:var(--navy); border-left-color:var(--navy); background:rgba(26,47,74,.05); font-weight:600; }
+.nav-badge { margin-left:auto; font-size:.6rem; font-weight:700; background:var(--red-bg); color:var(--red); border:1px solid rgba(139,42,31,.2); padding:.1rem .4rem; border-radius:20px; }
+.sb-foot { margin-top:auto; padding:.9rem 1rem; border-top:1px solid var(--border); }
+.sb-stat { font-size:.68rem; color:var(--ink3); line-height:1.7; }
+.sb-stat strong { color:var(--ink2); font-weight:600; }
+
+/* ── MAIN ── */
+.main { flex:1; overflow-y:auto; padding:1.6rem 1.8rem; }
+
+/* ── PANELS ── */
+.panel { display:none; animation:fadeIn .2s ease both; }
+.panel.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── SETUP ── */
+.setup-outer { min-height:60vh; display:flex; align-items:center; justify-content:center; }
+.setup-card { background:var(--surface); border:1px solid var(--border); box-shadow:var(--sh-lg); max-width:480px; width:100%; overflow:hidden; }
+.setup-top { background:var(--navy); padding:1.8rem; color:#fff; }
+.setup-top .ey { font-size:.6rem; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--gold); margin-bottom:.6rem; }
+.setup-top h3 { font-family:'DM Serif Display',serif; font-size:1.5rem; font-weight:400; line-height:1.2; }
+.setup-top p { font-size:.8rem; color:rgba(255,255,255,.6); margin-top:.6rem; line-height:1.6; }
+.setup-body { padding:1.5rem 1.8rem; }
+.field { display:flex; flex-direction:column; gap:.35rem; margin-bottom:1rem; }
+.field-lbl { font-size:.65rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); }
+input[type=url],input[type=text] { font-family:'DM Sans',sans-serif; font-size:.88rem; color:var(--ink); background:var(--bg); border:1px solid var(--border); padding:.65rem .9rem; outline:none; width:100%; transition:all .15s; border-radius:0; }
+input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rgba(26,47,74,.07); }
+.hint { font-size:.7rem; color:var(--ink3); line-height:1.5; margin-top:.25rem; }
+.hint code { background:var(--surface2); border:1px solid var(--border); padding:.1rem .3rem; font-size:.68rem; color:var(--red); }
+.setup-btns { display:flex; gap:.5rem; margin-top:1.2rem; flex-wrap:wrap; }
+.btn { font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:600; padding:.6rem 1.2rem; border:none; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:.4rem; letter-spacing:.02em; }
+.btn-primary { background:var(--navy); color:#fff; }
+.btn-primary:hover { background:var(--navy2); }
+.btn-ghost { background:transparent; border:1px solid var(--border); color:var(--ink2); }
+.btn-ghost:hover { border-color:var(--navy); color:var(--navy); }
+.setup-steps { margin-top:1.3rem; border-top:1px solid var(--border); padding-top:1.1rem; display:flex; flex-direction:column; gap:.5rem; }
+.sstep { display:flex; gap:.75rem; align-items:flex-start; }
+.snum { min-width:20px; height:20px; border-radius:50%; background:var(--navy); color:#fff; font-size:.65rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
+.sstep-txt { font-size:.76rem; color:var(--ink2); line-height:1.55; }
+
+/* ── BANNER ── */
+.banner { display:flex; align-items:center; gap:.7rem; padding:.75rem 1rem; border:1px solid; font-size:.78rem; margin-bottom:1rem; border-left:3px solid; line-height:1.45; }
+.banner.loading { background:var(--gold-bg); border-color:rgba(184,137,42,.2); border-left-color:var(--gold); color:var(--amber); }
+.banner.error { background:var(--red-bg); border-color:rgba(139,42,31,.18); border-left-color:var(--red); color:var(--red); }
+.banner.success { background:var(--green-bg); border-color:rgba(26,92,58,.18); border-left-color:var(--green); color:var(--green); }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,.1); border-top-color:currentColor; border-radius:50%; animation:rot .7s linear infinite; flex-shrink:0; }
+@keyframes rot { to{transform:rotate(360deg)} }
+
+/* ── PAGE HEADER ── */
+.ph { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:1.4rem; gap:1rem; flex-wrap:wrap; }
+.ph-left h2 { font-family:'DM Serif Display',serif; font-size:1.8rem; font-weight:400; letter-spacing:-.01em; color:var(--ink); line-height:1; }
+.ph-left p { font-size:.76rem; color:var(--ink3); margin-top:.3rem; }
+.ph-right { display:flex; align-items:center; gap:.6rem; }
+.ts { font-size:.68rem; color:var(--ink3); background:var(--surface); border:1px solid var(--border); padding:.28rem .75rem; }
+
+/* ── KPI STRIP ── */
+.kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:.9rem; margin-bottom:1.2rem; }
+.kpi { background:var(--surface); border:1px solid var(--border); padding:1.1rem 1.2rem; box-shadow:var(--sh); position:relative; overflow:hidden; }
+.kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.kpi.k-navy::before { background:var(--navy); }
+.kpi.k-gold::before { background:var(--gold); }
+.kpi.k-red::before { background:var(--red); }
+.kpi.k-green::before { background:var(--green); }
+.kpi.k-blue::before { background:var(--blue); }
+.kpi-lbl { font-size:.6rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); margin-bottom:.45rem; }
+.kpi-val { font-family:'DM Serif Display',serif; font-size:2.1rem; line-height:1; margin-bottom:.2rem; }
+.kpi.k-navy .kpi-val { color:var(--navy); }
+.kpi.k-gold .kpi-val { color:var(--gold); }
+.kpi.k-red .kpi-val { color:var(--red); }
+.kpi.k-green .kpi-val { color:var(--green); }
+.kpi.k-blue .kpi-val { color:var(--blue); }
+.kpi-sub { font-size:.7rem; color:var(--ink3); line-height:1.35; font-weight:300; }
+.kpi-trend { position:absolute; top:.9rem; right:.9rem; font-size:.65rem; font-weight:600; padding:.18rem .45rem; border-radius:2px; }
+.trend-up { background:var(--green-bg); color:var(--green); }
+.trend-dn { background:var(--red-bg); color:var(--red); }
+.trend-ok { background:var(--amber-bg); color:var(--amber); }
+
+/* ── SECTION LABEL ── */
+.sec-label { font-size:.6rem; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--ink3); margin:1.4rem 0 .7rem; display:flex; align-items:center; gap:.6rem; }
+.sec-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── CARD ── */
+.card { background:var(--surface); border:1px solid var(--border); box-shadow:var(--sh); overflow:hidden; margin-bottom:1rem; }
+.card-head { padding:.85rem 1.2rem; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.card-title { font-family:'DM Serif Display',serif; font-size:.95rem; color:var(--navy); }
+.card-sub { font-size:.68rem; color:var(--ink3); margin-top:.1rem; }
+.card-body { padding:1.1rem 1.2rem; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; margin-bottom:1rem; }
+
+/* ── DIMENSION BAR LIST ── */
+.dim-list { display:flex; flex-direction:column; gap:.75rem; }
+.dim-row { display:grid; grid-template-columns:1fr 36px; align-items:center; gap:.6rem; }
+.dim-info { display:flex; flex-direction:column; gap:.28rem; }
+.dim-name { font-size:.78rem; color:var(--ink); line-height:1.3; }
+.dim-track { height:4px; background:var(--border); overflow:hidden; }
+.dim-fill { height:100%; transition:width 1.2s cubic-bezier(.4,0,.2,1); }
+.dim-num { font-family:'DM Serif Display',serif; font-size:.95rem; font-weight:400; text-align:right; }
+
+/* ── AREA TABLE ── */
+.atable { width:100%; border-collapse:collapse; font-size:.78rem; }
+.atable th { font-size:.58rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); padding:.5rem .75rem; border-bottom:2px solid var(--border); background:var(--surface2); text-align:left; white-space:nowrap; }
+.atable td { padding:.65rem .75rem; border-bottom:1px solid rgba(226,221,216,.6); vertical-align:middle; }
+.atable tr:last-child td { border-bottom:none; }
+.atable tr:hover td { background:rgba(26,47,74,.02); }
+.atable td:first-child { font-weight:500; }
+.score-pill { display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:22px; padding:0 6px; font-family:'DM Serif Display',serif; font-size:.88rem; border-radius:2px; }
+.pill-hi { background:var(--green-bg); color:var(--green); }
+.pill-md { background:var(--amber-bg); color:var(--amber); }
+.pill-lo { background:var(--red-bg); color:var(--red); }
+.area-bar-wrap { display:flex; align-items:center; gap:.5rem; }
+.area-bar-track { flex:1; height:4px; background:var(--border); overflow:hidden; min-width:60px; }
+.area-bar-fill { height:100%; transition:width 1s ease; }
+
+/* ── ALERT CARDS ── */
+.alert-grid { display:grid; grid-template-columns:1fr 1fr; gap:.9rem; }
+.alert-card { background:var(--surface); border:1px solid var(--border); border-left:3px solid; padding:1rem 1.1rem; box-shadow:var(--sh); }
+.alert-card.crit { border-left-color:var(--red); }
+.alert-card.warn { border-left-color:var(--gold); }
+.alert-card.good { border-left-color:var(--green); }
+.alert-card.info { border-left-color:var(--blue); }
+.alert-lbl { font-size:.6rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; margin-bottom:.5rem; }
+.alert-card.crit .alert-lbl { color:var(--red); }
+.alert-card.warn .alert-lbl { color:var(--gold); }
+.alert-card.good .alert-lbl { color:var(--green); }
+.alert-card.info .alert-lbl { color:var(--blue); }
+.alert-txt { font-size:.77rem; color:var(--ink2); line-height:1.6; }
+.alert-item { display:flex; justify-content:space-between; align-items:center; padding:.3rem 0; border-bottom:1px solid var(--border); font-size:.77rem; }
+.alert-item:last-child { border-bottom:none; }
+.alert-item-name { color:var(--ink2); flex:1; padding-right:.5rem; line-height:1.35; }
+.alert-item-score { font-family:'DM Serif Display',serif; font-size:.95rem; font-weight:400; flex-shrink:0; }
+
+/* ── GAUGE ── */
+.gauge-wrap { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:.5rem 0; }
+.gauge-svg { width:140px; height:80px; }
+.gauge-val { font-family:'DM Serif Display',serif; font-size:2rem; line-height:1; }
+.gauge-lbl { font-size:.68rem; color:var(--ink3); text-align:center; }
+
+/* ── PROGRESS BAR CHART ── */
+.hbar-list { display:flex; flex-direction:column; gap:.5rem; }
+.hbar-row { display:flex; align-items:center; gap:.7rem; }
+.hbar-lbl { font-size:.72rem; color:var(--ink2); min-width:90px; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hbar-track { flex:1; height:18px; background:var(--bg); position:relative; overflow:hidden; }
+.hbar-fill { height:100%; transition:width 1s ease; display:flex; align-items:center; justify-content:flex-end; padding-right:.4rem; }
+.hbar-val { font-size:.68rem; font-weight:600; color:#fff; }
+.hbar-val.dark { color:var(--ink2); }
+
+/* ── DISTRIBUTION MINI ── */
+.dist-row { display:flex; height:28px; width:100%; overflow:hidden; border-radius:2px; gap:1px; }
+.dist-seg { display:flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:700; color:#fff; transition:flex .8s ease; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:1100px) { .kpi-row { grid-template-columns:repeat(3,1fr); } }
+@media(max-width:900px) { .sidebar{display:none;} .kpi-row{grid-template-columns:1fr 1fr;} .grid-2,.alert-grid{grid-template-columns:1fr;} .grid-3{grid-template-columns:1fr 1fr;} }
+@media(max-width:600px) { .kpi-row{grid-template-columns:1fr 1fr;} .main{padding:1rem;} }
+</style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <svg viewBox="0 0 16 16"><path d="M8 2L2 6v8h4v-4h4v4h4V6z"/></svg>
+    </div>
+    <div>
+      <span class="tb-title">Dashboard · Clima Laboral</span>
+      <span class="tb-company" id="tbCompany"></span>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="tb-status">
+      <div class="sdot" id="sdot"></div>
+      <span id="stxt">Sin conectar</span>
+    </div>
+    <button class="tb-btn" onclick="goTo('setup')">⚙ Configuración</button>
+    <button class="tb-btn accent" id="btnRefresh" onclick="refresh()" disabled>↺ Actualizar</button>
+    <button class="tb-btn" id="btnPDF" onclick="generarInformePDF()" disabled style="background:#1A5C3A;color:#fff;border-color:#1A5C3A;">📄 Informe PDF</button>
+    <button class="tb-btn" id="btnWord" onclick="generarInformeWord()" disabled style="background:#2B5797;color:#fff;border-color:#2B5797;">📝 Exportar Word</button>
+  </div>
+</div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-sec">Análisis</div>
+    <div class="nav-item active" onclick="goTo('overview')" id="nav-overview">📊 Resumen General</div>
+    <div class="nav-item" onclick="goTo('dimensions')" id="nav-dimensions">📐 Por Dimensión</div>
+    <div class="nav-item" onclick="goTo('areas')" id="nav-areas">🏢 Por Área</div>
+    <div class="nav-item" onclick="goTo('alerts')" id="nav-alerts">
+      ⚠️ Alertas <span class="nav-badge" id="alertBadge" style="display:none">0</span>
+    </div>
+    <div class="nav-sec">Encuestas</div>
+    <div class="nav-item" onclick="goTo('selector')" id="nav-selector">📂 Elegir Encuesta</div>
+    <div class="nav-item" onclick="goTo('comparar')" id="nav-comparar">📊 Comparar</div>
+    <div class="nav-sec">Sistema</div>
+    <div class="nav-item" onclick="goTo('setup')" id="nav-setup">🔗 Conexión</div>
+    <div class="sb-foot">
+      <div class="sb-stat" id="sbFoot">Sin datos</div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ══ SETUP ══ -->
+    <div class="panel active" id="panel-setup">
+      <div class="setup-outer">
+        <div class="setup-card">
+          <div class="setup-top">
+            <div class="ey">Configuración</div>
+            <h3>Conecta tu Google Sheets</h3>
+            <p>Pega la URL de tu Apps Script para leer las respuestas en tiempo real.</p>
+          </div>
+          <div class="setup-body">
+            <div id="setupStatus"></div>
+            <div class="field">
+              <label class="field-lbl">URL del Apps Script</label>
+              <input type="url" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+              <div class="hint">La misma URL que usas en la encuesta y que termina en <code>/exec</code></div>
+            </div>
+            <div class="setup-btns">
+              <button class="btn btn-primary" onclick="connect()">
+                <span id="connSpinner" style="display:none" class="spin"></span>
+                Conectar y cargar datos
+              </button>
+              <button class="btn btn-ghost" onclick="testConn()">Probar conexión</button>
+            </div>
+            <div class="setup-steps">
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:.2rem;">¿Primera vez?</div>
+              <div class="sstep"><div class="snum">1</div><div class="sstep-txt">Panel Admin → <strong>⚙️ Apps Script</strong> → Copiar script</div></div>
+              <div class="sstep"><div class="snum">2</div><div class="sstep-txt">Google Sheets → Extensiones → Apps Script → pegar → guardar</div></div>
+              <div class="sstep"><div class="snum">3</div><div class="sstep-txt">Implementar → Nueva implementación → Aplicación web → Cualquier usuario → copiar URL</div></div>
+              <div class="sstep"><div class="snum">4</div><div class="sstep-txt">Pegar la URL arriba y hacer clic en <strong>Conectar</strong></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ OVERVIEW ══ -->
+    <div class="panel" id="panel-overview"><div id="ovContent"></div></div>
+
+    <!-- ══ DIMENSIONS ══ -->
+    <div class="panel" id="panel-dimensions"><div id="dimContent"></div></div>
+
+    <!-- ══ AREAS ══ -->
+    <div class="panel" id="panel-areas"><div id="areaContent"></div></div>
+
+    <!-- ══ ALERTS ══ -->
+    <div class="panel" id="panel-alerts"><div id="alertContent"></div></div>
+
+    <!-- ══ SELECTOR DE ENCUESTA ══ -->
+    <div class="panel" id="panel-selector">
+      <div id="selectorContent">
+        <div class="ph"><div class="ph-left"><h2>Elegir Encuesta</h2><p>Selecciona qué encuesta quieres analizar</p></div></div>
+        <div id="sheetListWrap" style="margin-top:1rem;"></div>
+      </div>
+    </div>
+
+    <!-- ══ COMPARADOR ══ -->
+    <div class="panel" id="panel-comparar">
+      <div id="compararContent">
+        <div class="ph"><div class="ph-left"><h2>Comparar Encuestas</h2><p>Analiza la evolución entre dos períodos</p></div></div>
+        <div id="compararWrap" style="margin-top:1rem;"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const HARDCODED_URL = '';
+
+// ── STATE ───────────────────────────────────────────────────
+let URL_GAS = '', DATA = [], QUESTIONS = [], CHARTS = {}, lastUpdate = null;
+
+// ── NAV ─────────────────────────────────────────────────────
+function goTo(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const nav = document.getElementById('nav-' + name);
+  if (nav) nav.classList.add('active');
+  if (name === 'selector') renderSelector();
+  if (name === 'comparar') renderComparar();
+}
+
+// ── STATUS ──────────────────────────────────────────────────
+function setSt(state, text) {
+  const cls = state==='ok'?'live':state==='loading'?'loading':'err';
+  document.getElementById('sdot').className = 'sdot ' + cls;
+  document.getElementById('stxt').textContent = text;
+}
+function setupBanner(type, html) {
+  document.getElementById('setupStatus').innerHTML = `<div class="banner ${type}">${html}</div>`;
+}
+
+// ── CONNECTION ───────────────────────────────────────────────
+async function connect() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { setupBanner('error','Pega la URL del Apps Script primero.'); return; }
+  URL_GAS = url;
+  localStorage.setItem('climaiq_gas_url', url);
+  document.getElementById('connSpinner').style.display = 'inline-block';
+  await loadData();
+  document.getElementById('connSpinner').style.display = 'none';
+}
+
+async function testConn() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { setupBanner('error','Pega la URL primero.'); return; }
+  setSt('loading','Probando...');
+  setupBanner('loading','<span class="spin"></span>&nbsp; Probando conexión...');
+  try {
+    const res = await fetch(url + '?test=1');
+    const json = await res.json();
+    if (json.status === 'ok') { setSt('ok','Conectado'); setupBanner('success','✓ Conexión exitosa. El script está activo.'); }
+    else throw new Error(JSON.stringify(json));
+  } catch(e) {
+    setSt('err','Error');
+    setupBanner('error','✗ No se pudo conectar.<br><small style="opacity:.7">' + e.message + '</small>');
+  }
+}
+
+async function loadData() {
+  if (!URL_GAS) return;
+  setSt('loading','Cargando...');
+  document.getElementById('btnRefresh').disabled = true;
+  try {
+    const res = await fetch(URL_GAS + '?action=getData');
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Error desconocido');
+    DATA = normalizeData(json.data || []);
+    QUESTIONS = normalizeQuestions(json.questions || []);
+    lastUpdate = new Date();
+    const cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
+    if (cfg.identity?.companyName) document.getElementById('tbCompany').textContent = '· ' + cfg.identity.companyName;
+    if (!DATA.length) { setSt('ok','Sin respuestas'); setupBanner('success','Conectado. Aún no hay respuestas en la hoja.'); return; }
+    renderAll();
+    setSt('ok', DATA.length + ' respuestas · En vivo');
+    document.getElementById('btnRefresh').disabled = false;
+    document.getElementById('btnPDF').disabled = false;
+    document.getElementById('btnWord').disabled = false;
+    setupBanner('success', `✓ ${DATA.length} respuestas cargadas correctamente.`);
+    document.getElementById('sbFoot').innerHTML =
+      `<strong>${DATA.length}</strong> respuestas<br>${getAreas().length} áreas<br><span style="color:var(--ink3)">${lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</span>`;
+    goTo('overview');
+  } catch(e) {
+    setSt('err','Error');
+    setupBanner('error','✗ ' + e.message + '<br><small style="opacity:.7">Verifica la URL y que el script esté implementado con acceso "Cualquier usuario".</small>');
+    document.getElementById('btnRefresh').disabled = false;
+    document.getElementById('btnPDF').disabled = false;
+    document.getElementById('btnWord').disabled = false;
+  }
+}
+
+async function refresh() {
+  if (!URL_GAS) { goTo('setup'); return; }
+  setSt('loading','Actualizando...');
+  document.getElementById('btnRefresh').disabled = true;
+  try {
+    const res = await fetch(URL_GAS + '?action=getData');
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    DATA = normalizeData(json.data || []);
+    QUESTIONS = normalizeQuestions(json.questions || []);
+    lastUpdate = new Date();
+    renderAll();
+    setSt('ok', DATA.length + ' respuestas · ' + lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+    document.getElementById('sbFoot').innerHTML =
+      `<strong>${DATA.length}</strong> respuestas<br>${getAreas().length} áreas<br><span style="color:var(--ink3)">${lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</span>`;
+  } catch(e) { setSt('err','Error al actualizar'); }
+  document.getElementById('btnRefresh').disabled = false;
+    document.getElementById('btnPDF').disabled = false;
+    document.getElementById('btnWord').disabled = false;
+}
+
+function renderAll() {
+  renderOverview();
+  renderDimensions();
+  renderAreas();
+  renderAlerts();
+}
+
+// ── DATA NORMALIZE ───────────────────────────────────────────
+function normalizeData(raw) {
+  return raw.map(row => {
+    const r = {};
+    for (const k in row) {
+      const nk = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_');
+      r[nk] = row[k];
+    }
+    r.nombre        = String(row['Nombre']||row['nombre']||'Anónimo');
+    r.cargo         = String(row['Cargo']||row['cargo']||'');
+    r.jefe          = String(row['Jefe Inmediato']||row['jefe']||'');
+    r.area          = String(row['Área']||row['Area']||row['area']||'Sin área');
+    r.propuesta     = String(row['Propuestas de mejora']||row['propuesta']||'');
+    r.observaciones = String(row['Observaciones']||row['observaciones']||'');
+    for (const k in row) {
+      if (/^q[_\s]/.test(k)) {
+        const val = parseInt(row[k]);
+        r[k] = (val>=1&&val<=4) ? val : null;
+      }
+    }
+    return r;
+  });
+}
+function normalizeQuestions(qs) {
+  return qs.filter(q => q && q.key).map(q => ({ key:String(q.key), label:String(q.label||q.key) }));
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+function getAreas() { return [...new Set(DATA.map(r=>String(r.area||'')).filter(Boolean))]; }
+function avg(arr) {
+  const n = arr.filter(v => v!==null&&v!==undefined&&!isNaN(v)&&parseFloat(v)>=1&&parseFloat(v)<=4);
+  return n.length ? n.reduce((a,b)=>a+parseFloat(b),0)/n.length : null;
+}
+function r2(n) { return n===null?null:Math.round(n*100)/100; }
+function pillClass(s) { return s>=3?'pill-hi':s>=2.3?'pill-md':'pill-lo'; }
+function barColor(s) { return s>=3?'#1A5C3A':s>=2.3?'#8A5210':'#8B2A1F'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function sf(v,max) { const s=String(v||''); return s.length>max?s.substring(0,max)+'…':s; }
+function ts() { return lastUpdate?lastUpdate.toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—'; }
+function destroyC(id) { if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];} }
+
+function getDims() {
+  return QUESTIONS.map(q => {
+    const vals = DATA.map(r=>r[q.key]).filter(v=>v!==null&&v!==undefined&&!isNaN(v)&&parseInt(v)>=1&&parseInt(v)<=4);
+    const a = vals.length ? r2(vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length) : null;
+    return { ...q, label:String(q.label||q.key), avg:a, count:vals.length };
+  }).filter(d => d.avg !== null);
+}
+
+function getAreaData() {
+  return getAreas().map(area => {
+    const rows = DATA.filter(r=>String(r.area||'')===area);
+    const dimScores = QUESTIONS.map(q => {
+      const vals = rows.map(r=>r[q.key]).filter(v=>v!==null&&!isNaN(v)&&parseInt(v)>=1&&parseInt(v)<=4);
+      return vals.length ? vals.reduce((a,b)=>a+parseFloat(b),0)/vals.length : null;
+    });
+    const validScores = dimScores.filter(s=>s!==null);
+    const overall = validScores.length ? r2(validScores.reduce((a,b)=>a+b,0)/validScores.length) : null;
+    return { area:String(area), count:rows.length, dimScores, overall };
+  }).filter(a=>a.overall!==null).sort((a,b)=>b.overall-a.overall);
+}
+
+// ── RENDER OVERVIEW ──────────────────────────────────────────
+function renderOverview() {
+  if (!DATA.length) return;
+  const dims = getDims();
+  const areas = getAreaData();
+  if (!dims.length || !areas.length) return;
+
+  const validDimAvgs = dims.filter(d=>d.avg!==null);
+  const global = validDimAvgs.length ? r2(validDimAvgs.reduce((a,d)=>a+d.avg,0)/validDimAvgs.length) : 0;
+  const sorted = [...validDimAvgs].sort((a,b)=>b.avg-a.avg);
+  const bestDim = sorted[0];
+  const worstDim = sorted[sorted.length-1];
+  const bestArea = areas[0];
+  const worstArea = areas[areas.length-1];
+
+  const allScores = DATA.flatMap(r=>QUESTIONS.map(q=>parseInt(r[q.key])).filter(v=>v>=1&&v<=4));
+  const dist = [1,2,3,4].map(v=>allScores.filter(s=>s===v).length);
+  const total = allScores.length;
+
+  // Respuestas positivas (3+4)
+  const positivePct = total>0 ? Math.round((dist[2]+dist[3])/total*100) : 0;
+  const negativePct = total>0 ? Math.round((dist[0]+dist[1])/total*100) : 0;
+
+  // Alert count
+  const critDims = dims.filter(d=>d.avg<2.3).length;
+  const critAreas = areas.filter(a=>a.overall<2.3).length;
+  const totalAlerts = critDims + critAreas;
+
+  const gaugeColor = global>=3?'#1A5C3A':global>=2.3?'#8A5210':'#8B2A1F';
+  const gaugeAngle = ((global/4)*180);
+  const gaugeRad = gaugeAngle * Math.PI / 180;
+  const gx = 70 + 55*Math.cos(Math.PI - gaugeRad);
+  const gy = 70 - 55*Math.sin(Math.PI - gaugeRad);
+
+  // Score level label
+  const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
+  const scoreLabelColor = global>=3?'var(--green)':global>=2.3?'var(--amber)':'var(--red)';
+
+  document.getElementById('ovContent').innerHTML = `
+    <div class="ph">
+      <div class="ph-left">
+        <h2>Resumen General</h2>
+        <p>${DATA.length} respuestas · ${getAreas().length} áreas · ${dims.length} dimensiones evaluadas</p>
+      </div>
+      <div class="ph-right">
+        <div class="ts">🕐 ${ts()}</div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi k-navy">
+        <div class="kpi-lbl">Score Global</div>
+        <div class="kpi-val">${global.toFixed(2)}</div>
+        <div class="kpi-sub">Promedio / 4.0</div>
+        <div class="kpi-trend trend-${global>=3?'up':global>=2.3?'ok':'dn'}">${scoreLabel}</div>
+      </div>
+      <div class="kpi k-green">
+        <div class="kpi-lbl">Respuestas Positivas</div>
+        <div class="kpi-val">${positivePct}%</div>
+        <div class="kpi-sub">Puntuaciones 3 o 4</div>
+        <div class="kpi-trend trend-${positivePct>=60?'up':'dn'}">${dist[2]+dist[3]} de ${total}</div>
+      </div>
+      <div class="kpi k-red">
+        <div class="kpi-lbl">Respuestas Negativas</div>
+        <div class="kpi-val">${negativePct}%</div>
+        <div class="kpi-sub">Puntuaciones 1 o 2</div>
+        <div class="kpi-trend trend-${negativePct<=30?'up':'dn'}">${dist[0]+dist[1]} de ${total}</div>
+      </div>
+      <div class="kpi k-gold">
+        <div class="kpi-lbl">Áreas Críticas</div>
+        <div class="kpi-val">${critAreas}</div>
+        <div class="kpi-sub">Score &lt; 2.3</div>
+        <div class="kpi-trend trend-${critAreas===0?'up':'dn'}">${critAreas===0?'Sin alertas':'Requieren atención'}</div>
+      </div>
+      <div class="kpi k-blue">
+        <div class="kpi-lbl">Participantes</div>
+        <div class="kpi-val">${DATA.length}</div>
+        <div class="kpi-sub">${getAreas().length} áreas · ${dims.length} preguntas</div>
+      </div>
+    </div>
+
+    <div class="sec-label">Distribución y tendencia</div>
+
+    <div class="grid-2">
+      <!-- Gauge + dist -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Nivel de Clima Laboral</div>
+            <div class="card-sub">Indicador global y distribución de respuestas</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+            <div class="gauge-wrap">
+              <svg class="gauge-svg" viewBox="0 0 140 80">
+                <path d="M15 70 A55 55 0 0 1 125 70" fill="none" stroke="#E2DDD8" stroke-width="10" stroke-linecap="round"/>
+                <path d="M15 70 A55 55 0 0 1 125 70" fill="none" stroke="${gaugeColor}" stroke-width="10"
+                  stroke-linecap="round" stroke-dasharray="${(global/4)*172.8} 172.8"/>
+                <circle cx="${gx}" cy="${gy}" r="5" fill="${gaugeColor}"/>
+                <text x="70" y="66" text-anchor="middle" font-family="DM Serif Display,serif" font-size="22" fill="${gaugeColor}">${global.toFixed(2)}</text>
+                <text x="70" y="78" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="8" fill="#9A9490">de 4.0</text>
+                <text x="12" y="82" font-family="DM Sans,sans-serif" font-size="7" fill="#9A9490">1</text>
+                <text x="62" y="22" font-family="DM Sans,sans-serif" font-size="7" fill="#9A9490">2.5</text>
+                <text x="122" y="82" font-family="DM Sans,sans-serif" font-size="7" fill="#9A9490">4</text>
+              </svg>
+              <div style="font-size:.72rem;font-weight:600;color:${scoreLabelColor}">${scoreLabel}</div>
+            </div>
+            <div style="flex:1;min-width:120px;">
+              <div style="font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:.6rem;">Distribución</div>
+              <div class="dist-row" style="margin-bottom:.5rem;">
+                ${[0,1,2,3].map((i,_)=>{
+                  const pct = total>0?Math.round(dist[i]/total*100):0;
+                  const colors=['#8B2A1F','#8A5210','#1A4A7A','#1A5C3A'];
+                  return pct>3?`<div class="dist-seg" style="flex:${pct};background:${colors[i]}">${pct}%</div>`:
+                    `<div class="dist-seg" style="flex:${Math.max(pct,1)};background:${colors[i]}"></div>`;
+                }).join('')}
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin-top:.4rem;">
+                ${['#8B2A1F','#8A5210','#1A4A7A','#1A5C3A'].map((c,i)=>`
+                  <div style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:var(--ink2);">
+                    <div style="width:8px;height:8px;background:${c};border-radius:1px;flex-shrink:0;"></div>
+                    ${i+1} — ${['Nunca','Pocas veces','Frecuentemente','Siempre'][i]}
+                    <span style="color:var(--ink3)">(${total>0?Math.round(dist[i]/total*100):0}%)</span>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top/Bottom dims -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Fortalezas y Áreas de Mejora</div>
+            <div class="card-sub">Las 3 mejores y 3 peores dimensiones</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.5rem;">✓ FORTALEZAS</div>
+          ${sorted.slice(0,3).map(d=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(sf(d.label,50))}</div>
+              <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
+            </div>`).join('')}
+          <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-top:.9rem;margin-bottom:.5rem;">✗ OPORTUNIDADES</div>
+          ${sorted.slice(-3).reverse().map(d=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(sf(d.label,50))}</div>
+              <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-label">Resultados por área</div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Comparativa por Área</div>
+          <div class="card-sub">Score promedio · Verde ≥ 3.0 · Ámbar ≥ 2.3 · Rojo &lt; 2.3</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hbar-list">
+          ${areas.map(a=>`
+            <div class="hbar-row">
+              <div class="hbar-lbl" title="${esc(a.area)}">${esc(sf(a.area,14))}</div>
+              <div class="hbar-track">
+                <div class="hbar-fill" style="width:${(a.overall/4)*100}%;background:${barColor(a.overall)}">
+                  <span class="hbar-val">${a.overall}</span>
+                </div>
+              </div>
+              <div style="font-size:.68rem;color:var(--ink3);min-width:28px;text-align:right">${a.count}p</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── RENDER DIMENSIONS ────────────────────────────────────────
+function renderDimensions() {
+  if (!DATA.length) return;
+  const dims = getDims();
+  if (!dims.length) return;
+  const sorted = [...dims].sort((a,b)=>b.avg-a.avg);
+
+  document.getElementById('dimContent').innerHTML = `
+    <div class="ph">
+      <div class="ph-left"><h2>Por Dimensión</h2><p>Análisis detallado de cada pregunta evaluada</p></div>
+      <div class="ph-right"><div class="ts">🕐 ${ts()}</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Puntaje por Pregunta</div><div class="card-sub">Ordenado de mayor a menor</div></div></div>
+        <div class="card-body">
+          <div class="dim-list">
+            ${sorted.map(d=>`
+              <div class="dim-row">
+                <div class="dim-info">
+                  <div class="dim-name">${esc(sf(d.label,62))}</div>
+                  <div class="dim-track"><div class="dim-fill" style="width:${(d.avg/4)*100}%;background:${barColor(d.avg)}"></div></div>
+                </div>
+                <div class="dim-num" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Distribución por Dimensión</div><div class="card-sub">Respuestas 1, 2, 3, 4 por pregunta</div></div></div>
+        <div class="card-body" style="overflow-x:auto">
+          <div class="chart-wrap" style="height:${Math.max(200,dims.length*36)}px"><canvas id="cStack"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Clasificación de Dimensiones</div><div class="card-sub">Según nivel de desempeño</div></div></div>
+      <div class="card-body">
+        <div class="grid-3">
+          <div>
+            <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--green);">✓ SATISFACTORIO ≥ 3.0</div>
+            ${dims.filter(d=>d.avg>=3).map(d=>`
+              <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="font-family:'DM Serif Display',serif;color:var(--green)">${d.avg.toFixed(2)}</span>
+              </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Ninguna dimensión alcanza este nivel</div>'}
+          </div>
+          <div>
+            <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--amber);">⚠ ATENCIÓN 2.3 – 3.0</div>
+            ${dims.filter(d=>d.avg>=2.3&&d.avg<3).map(d=>`
+              <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="font-family:'DM Serif Display',serif;color:var(--amber)">${d.avg.toFixed(2)}</span>
+              </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Sin dimensiones en este rango</div>'}
+          </div>
+          <div>
+            <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--red);">✗ CRÍTICO &lt; 2.3</div>
+            ${dims.filter(d=>d.avg<2.3).map(d=>`
+              <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="font-family:'DM Serif Display',serif;color:var(--red)">${d.avg.toFixed(2)}</span>
+              </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Sin dimensiones críticas ✓</div>'}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  destroyC('cStack');
+  const s1=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===1).length);
+  const s2=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===2).length);
+  const s3=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===3).length);
+  const s4=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===4).length);
+  CHARTS['cStack'] = new Chart(document.getElementById('cStack'),{
+    type:'bar',
+    data:{ labels:dims.map(d=>wrapLabel(d.label,30)),
+      datasets:[
+        {label:'1 — Nunca',data:s1,backgroundColor:'rgba(139,42,31,.85)'},
+        {label:'2 — Pocas veces',data:s2,backgroundColor:'rgba(138,82,16,.85)'},
+        {label:'3 — Frecuentemente',data:s3,backgroundColor:'rgba(26,74,122,.85)'},
+        {label:'4 — Siempre',data:s4,backgroundColor:'rgba(26,92,58,.85)'},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      scales:{
+        x:{stacked:true,grid:{color:'rgba(226,221,216,.5)'},ticks:{color:'#9A9490',font:{size:10}}},
+        y:{stacked:true,grid:{display:false},ticks:{color:'#1C1A18',font:{size:10}}}},
+      plugins:{legend:{position:'bottom',labels:{color:'#4A4642',font:{size:11},padding:12,boxWidth:12}}}}
+  });
+}
+
+// ── RENDER AREAS ─────────────────────────────────────────────
+function renderAreas() {
+  if (!DATA.length) return;
+  const areas = getAreaData();
+  const dims = getDims();
+  if (!areas.length || !dims.length) return;
+  const colors = ['#1A2F4A','#1A5C3A','#8A5210','#1A4A7A','#8B2A1F','#4A1D6B','#1A5C6B','#6B3A1A'];
+
+  document.getElementById('areaContent').innerHTML = `
+    <div class="ph">
+      <div class="ph-left"><h2>Por Área</h2><p>Comparativa detallada entre departamentos</p></div>
+      <div class="ph-right"><div class="ts">🕐 ${ts()}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Tabla Comparativa Completa</div><div class="card-sub">Puntaje por dimensión · Verde ≥ 3.0 · Ámbar ≥ 2.3 · Rojo &lt; 2.3</div></div></div>
+      <div class="card-body" style="overflow-x:auto;padding:0;">
+        <table class="atable">
+          <thead><tr>
+            <th style="min-width:110px">Área</th>
+            <th style="text-align:center">N</th>
+            ${dims.map(d=>`<th title="${esc(d.label)}" style="min-width:70px">${esc(sf(d.label,16))}</th>`).join('')}
+            <th style="min-width:80px">Promedio</th>
+          </tr></thead>
+          <tbody>
+            ${areas.map(a=>`
+              <tr>
+                <td>${esc(a.area)}</td>
+                <td style="text-align:center;color:var(--ink3)">${a.count}</td>
+                ${a.dimScores.map(s=>s!==null?`<td><span class="score-pill ${pillClass(r2(s))}">${r2(s).toFixed(1)}</span></td>`:'<td style="color:var(--ink3);font-size:.7rem">—</td>').join('')}
+                <td>
+                  <div class="area-bar-wrap">
+                    <span class="score-pill ${pillClass(a.overall)}" style="font-size:.92rem;font-weight:500;min-width:42px">${a.overall}</span>
+                    <div class="area-bar-track"><div class="area-bar-fill" style="width:${(a.overall/4)*100}%;background:${barColor(a.overall)}"></div></div>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Comparativa Visual por Área y Dimensión</div><div class="card-sub">Cada color representa una dimensión evaluada</div></div></div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:${Math.max(280,areas.length*dims.length*5+80)}px">
+          <canvas id="cHeat"></canvas>
+        </div>
+      </div>
+    </div>
+  `;
+
+  destroyC('cHeat');
+  CHARTS['cHeat'] = new Chart(document.getElementById('cHeat'),{
+    type:'bar',
+    data:{
+      labels:areas.map(a=>a.area),
+      datasets:dims.map((d,i)=>({
+        label:sf(d.label,28),
+        data:areas.map(a=>{
+          const rows=DATA.filter(r=>String(r.area||'')===a.area);
+          const vals=rows.map(r=>r[d.key]).filter(v=>v!==null&&!isNaN(v)&&parseInt(v)>=1&&parseInt(v)<=4);
+          return vals.length?r2(vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length):null;
+        }),
+        backgroundColor:colors[i%colors.length]+'CC',
+        borderColor:colors[i%colors.length],
+        borderWidth:1
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{grid:{color:'rgba(226,221,216,.4)'},ticks:{color:'#1C1A18',font:{size:11}}},
+        y:{min:0,max:4,grid:{color:'rgba(226,221,216,.5)'},ticks:{color:'#9A9490',font:{size:10}}}},
+      plugins:{legend:{position:'bottom',labels:{color:'#4A4642',font:{size:10},padding:10,boxWidth:12}}}}
+  });
+}
+
+// ── RENDER ALERTS ────────────────────────────────────────────
+function renderAlerts() {
+  if (!DATA.length) return;
+  const dims = getDims();
+  const areas = getAreaData();
+  if (!dims.length) return;
+
+  const validAvgs = dims.filter(d=>d.avg!==null).map(d=>d.avg);
+  const global = validAvgs.length ? r2(validAvgs.reduce((a,b)=>a+b,0)/validAvgs.length) : 0;
+  const critDims = dims.filter(d=>d.avg<2.3).sort((a,b)=>a.avg-b.avg);
+  const warnDims = dims.filter(d=>d.avg>=2.3&&d.avg<3).sort((a,b)=>a.avg-b.avg);
+  const goodDims = dims.filter(d=>d.avg>=3).sort((a,b)=>b.avg-a.avg);
+  const critAreas = areas.filter(a=>a.overall<2.3);
+  const warnAreas = areas.filter(a=>a.overall>=2.3&&a.overall<3);
+  const goodAreas = areas.filter(a=>a.overall>=3);
+  const totalAlerts = critDims.length + critAreas.length;
+
+  const badge = document.getElementById('alertBadge');
+  badge.style.display = totalAlerts>0?'inline-flex':'none';
+  badge.textContent = totalAlerts;
+
+  const allScores = DATA.flatMap(r=>QUESTIONS.map(q=>parseInt(r[q.key])).filter(v=>v>=1&&v<=4));
+  const total = allScores.length;
+  const positivePct = total>0?Math.round(allScores.filter(v=>v>=3).length/total*100):0;
+
+  document.getElementById('alertContent').innerHTML = `
+    <div class="ph">
+      <div class="ph-left"><h2>Alertas y Diagnóstico</h2><p>Puntos de atención prioritaria para la toma de decisiones</p></div>
+      <div class="ph-right"><div class="ts">🕐 ${ts()}</div></div>
+    </div>
+
+    <!-- Resumen ejecutivo -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><div><div class="card-title">Resumen Ejecutivo</div><div class="card-sub">Estado general del clima laboral</div></div></div>
+      <div class="card-body">
+        <div class="grid-3">
+          <div style="text-align:center;padding:.5rem;">
+            <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${barColor(global)}">${global.toFixed(2)}</div>
+            <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Score Global / 4.0</div>
+            <div style="font-size:.8rem;font-weight:600;color:${barColor(global)};margin-top:.3rem;">${global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico'}</div>
+          </div>
+          <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
+            <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${positivePct>=60?'var(--green)':'var(--red)'}">${positivePct}%</div>
+            <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Respuestas Positivas (3+4)</div>
+            <div style="font-size:.8rem;font-weight:600;color:${positivePct>=60?'var(--green)':'var(--red)'};margin-top:.3rem;">${positivePct>=75?'Muy positivo':positivePct>=60?'Positivo':positivePct>=45?'Mixto':'Preocupante'}</div>
+          </div>
+          <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
+            <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${totalAlerts===0?'var(--green)':'var(--red)'}">${totalAlerts}</div>
+            <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Alertas Críticas Activas</div>
+            <div style="font-size:.8rem;font-weight:600;color:${totalAlerts===0?'var(--green)':'var(--red)'};margin-top:.3rem;">${totalAlerts===0?'Sin alertas críticas':'Requieren acción inmediata'}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+          <div style="font-size:.72rem;color:var(--ink2);line-height:1.7;">
+            <strong>Diagnóstico:</strong>
+            ${global>=3?`El clima laboral general es <strong style="color:var(--green)">satisfactorio</strong>. Se recomienda mantener las prácticas actuales y enfocarse en las dimensiones con menor puntaje para elevar el nivel general.`:
+              global>=2.3?`El clima laboral se encuentra en un nivel <strong style="color:var(--amber)">moderado</strong>. Existen áreas de mejora importantes que requieren atención antes de que se conviertan en problemas críticos.`:
+              `El clima laboral está en un nivel <strong style="color:var(--red)">crítico</strong>. Se requiere <strong>intervención inmediata</strong> con planes de acción específicos para cada área y dimensión señalada.`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-grid">
+      ${critDims.length>0?`
+        <div class="alert-card crit">
+          <div class="alert-lbl">🚨 Dimensiones Críticas (&lt; 2.3) — Intervención Inmediata</div>
+          ${critDims.map(d=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-score" style="color:var(--red)">${d.avg.toFixed(2)}</div>
+            </div>`).join('')}
+          <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(139,42,31,.12);">Requieren plan de acción inmediato con responsable asignado y fecha de seguimiento.</div>
+        </div>`:`
+        <div class="alert-card good">
+          <div class="alert-lbl">✓ Sin Dimensiones Críticas</div>
+          <div class="alert-txt">Ninguna dimensión está por debajo de 2.3. El clima laboral tiene una base saludable en todas las dimensiones evaluadas.</div>
+        </div>`}
+
+      ${critAreas.length>0?`
+        <div class="alert-card crit">
+          <div class="alert-lbl">🏢 Áreas Críticas (&lt; 2.3) — Diagnóstico Urgente</div>
+          ${critAreas.map(a=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
+              <div class="alert-item-score" style="color:var(--red)">${a.overall}</div>
+            </div>`).join('')}
+          <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(139,42,31,.12);">Reunión urgente con líderes directos. Identificar causas raíz y establecer plan de mejora.</div>
+        </div>`:`
+        <div class="alert-card good">
+          <div class="alert-lbl">✓ Todas las Áreas en Nivel Aceptable</div>
+          <div class="alert-txt">Ningún área tiene score menor a 2.3. Continúa monitoreando las áreas en nivel de atención.</div>
+        </div>`}
+
+      ${warnDims.length>0?`
+        <div class="alert-card warn">
+          <div class="alert-lbl">⚠ Dimensiones en Atención (2.3–3.0)</div>
+          ${warnDims.map(d=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-score" style="color:var(--amber)">${d.avg.toFixed(2)}</div>
+            </div>`).join('')}
+          <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(184,137,42,.15);">Implementar mejoras preventivas. Monitorear en la próxima medición.</div>
+        </div>`:''}
+
+      ${warnAreas.length>0?`
+        <div class="alert-card warn">
+          <div class="alert-lbl">⚠ Áreas en Atención (2.3–3.0)</div>
+          ${warnAreas.map(a=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
+              <div class="alert-item-score" style="color:var(--amber)">${a.overall}</div>
+            </div>`).join('')}
+          <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(184,137,42,.15);">Seguimiento periódico con los líderes de estas áreas.</div>
+        </div>`:''}
+
+      ${goodDims.length>0?`
+        <div class="alert-card good">
+          <div class="alert-lbl">💪 Fortalezas del Equipo (≥ 3.0)</div>
+          ${goodDims.slice(0,5).map(d=>`
+            <div class="alert-item">
+              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-score" style="color:var(--green)">${d.avg.toFixed(2)}</div>
+            </div>`).join('')}
+          <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(26,92,58,.12);">Comunicar estos resultados al equipo. Son los puntos fuertes de la cultura organizacional.</div>
+        </div>`:''}
+
+      <div class="alert-card info">
+        <div class="alert-lbl">📋 Recomendaciones de Acción</div>
+        <div class="alert-txt" style="line-height:1.8;">
+          ${critDims.length>0||critAreas.length>0?`
+            <strong>Prioridad Alta:</strong><br>
+            • Sesiones de retroalimentación con áreas críticas<br>
+            • Diagnóstico cualitativo (entrevistas/grupos focales)<br>
+            • Plan de acción con responsables y fechas<br><br>`:''}
+          ${warnDims.length>0||warnAreas.length>0?`
+            <strong>Prioridad Media:</strong><br>
+            • Talleres de mejora en dimensiones en atención<br>
+            • Seguimiento mensual con líderes<br><br>`:''}
+          <strong>Siempre:</strong><br>
+          • Comunicar resultados a todo el personal<br>
+          • Reconocer públicamente las fortalezas identificadas<br>
+          • Programar siguiente medición en 3-6 meses
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── UTIL ────────────────────────────────────────────────────
+function wrapLabel(s, max) {
+  s = String(s||'');
+  if (s.length<=max) return s;
+  const words = s.split(' ');
+  const lines=[]; let cur='';
+  words.forEach(w=>{
+    if((cur+' '+w).trim().length>max){lines.push(cur.trim());cur=w;}
+    else cur+=(cur?' ':'')+w;
+  });
+  if(cur) lines.push(cur.trim());
+  return lines;
+}
+
+// ── BOOT ────────────────────────────────────────────────────
+(function boot() {
+  const saved = HARDCODED_URL || localStorage.getItem('climaiq_gas_url') || '';
+  if (saved) {
+    URL_GAS = saved;
+    document.getElementById('urlInput').value = saved;
+    loadData();
+  }
+})();
+
+
+// ── Normalizar acentos para jsPDF ──
+const t = s => String(s).replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/Ñ/g,'N').replace(/ñ/g,'n').replace(/ü/g,'u').replace(/—/g,'-').replace(/–/g,'-').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/…/g,'...');
+
+n// ── GENERAR INFORME PDF COSO ─────────────────────────────────
+function generarInformePDF() {
+  if (!DATA.length) { alert('No hay datos cargados.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const dims = getDims();
+  const areas = getAreaData();
+  const validAvgs = dims.filter(d=>d.avg!==null).map(d=>d.avg);
+  const global = validAvgs.length ? r2(validAvgs.reduce((a,b)=>a+b,0)/validAvgs.length) : 0;
+  const allScores = DATA.flatMap(r=>QUESTIONS.map(q=>parseInt(r[q.key])).filter(v=>v>=1&&v<=4));
+  const total = allScores.length;
+  const positivePct = total>0?Math.round(allScores.filter(v=>v>=3).length/total*100):0;
+  const negativePct = 100-positivePct;
+  const critDims = dims.filter(d=>d.avg!==null&&d.avg<2.3).sort((a,b)=>a.avg-b.avg);
+  const warnDims = dims.filter(d=>d.avg!==null&&d.avg>=2.3&&d.avg<3).sort((a,b)=>a.avg-b.avg);
+  const goodDims = dims.filter(d=>d.avg!==null&&d.avg>=3).sort((a,b)=>b.avg-a.avg);
+  const critAreas = areas.filter(a=>a.overall<2.3);
+  const warnAreas = areas.filter(a=>a.overall>=2.3&&a.overall<3);
+  const goodAreas = areas.filter(a=>a.overall>=3);
+  const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
+  const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
+  const fechaHoy = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+  const totalAlerts = critDims.length + critAreas.length;
+
+  // Colors
+  const NAVY  = [26, 47, 74];
+  const GOLD  = [184, 137, 42];
+  const RED   = [139, 42, 31];
+  const GREEN = [26, 92, 58];
+  const AMBER = [138, 82, 16];
+  const GRAY  = [154, 148, 144];
+  const LIGHT = [240, 237, 232];
+  const WHITE = [255, 255, 255];
+
+  const W = 210, M = 18;
+  let y = 0;
+
+  function newPage() {
+    doc.addPage();
+    y = 20;
+    // Footer
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 285, W, 12, 'F');
+    doc.setFontSize(7); doc.setTextColor(...WHITE);
+    doc.text('CONFIDENCIAL · Informe de Clima Laboral · ' + companyName, M, 292);
+    doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
+    doc.setTextColor(0,0,0);
+  }
+
+  function checkY(needed) { if (y + needed > 275) { newPage(); } }
+
+  function sectionTitle(txt, marginTop=8) {
+    checkY(marginTop+10);
+    y += marginTop;
+    doc.setFillColor(...LIGHT);
+    doc.rect(M, y, W-M*2, 7, 'F');
+    doc.setDrawColor(...NAVY); doc.setLineWidth(.4);
+    doc.line(M, y, M, y+7);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.text(txt.toUpperCase(), M+3, y+4.8);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += 10;
+  }
+
+  function paragraph(txt, indent=0, lineH=5) {
+    const lines = doc.splitTextToSize(txt, W - M*2 - indent);
+    checkY(lines.length * lineH + 2);
+    doc.setFontSize(9); doc.setTextColor(44, 42, 40);
+    doc.text(lines, M + indent, y);
+    y += lines.length * lineH + 2;
+  }
+
+  function scoreRow(label, score, color) {
+    checkY(8);
+    const scoreColor = score>=3?GREEN:score>=2.3?AMBER:RED;
+    doc.setFontSize(8.5); doc.setTextColor(44,42,40);
+    const labelLines = doc.splitTextToSize(label, W-M*2-25);
+    doc.text(labelLines, M+2, y);
+    doc.setFont('helvetica','bold'); doc.setTextColor(...scoreColor);
+    doc.text(score.toFixed(2), W-M-2, y, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    // mini bar
+    const barW = W-M*2-28;
+    doc.setFillColor(...LIGHT);
+    doc.rect(M+2, y+1.5, barW, 2.5, 'F');
+    doc.setFillColor(...scoreColor);
+    doc.rect(M+2, y+1.5, barW*(score/4), 2.5, 'F');
+    y += Math.max(labelLines.length*4.5, 7) + 2;
+  }
+
+  function kpiBox(x, bY, bW, bH, label, value, color) {
+    doc.setFillColor(250,250,248); doc.setDrawColor(...LIGHT);
+    doc.rect(x, bY, bW, bH, 'FD');
+    doc.setFillColor(...color); doc.rect(x, bY, bW, 1.5, 'F');
+    doc.setFontSize(6.5); doc.setTextColor(...GRAY); doc.setFont('helvetica','bold');
+    doc.text(label.toUpperCase(), x+3, bY+6);
+    doc.setFontSize(16); doc.setTextColor(...color); doc.setFont('helvetica','bold');
+    doc.text(String(value), x+3, bY+15);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  }
+
+  // ══ PORTADA ══
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 65, 'F');
+  // Accent bar
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 62, W, 3, 'F');
+  // Title
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...GOLD);
+  doc.text('INFORME DE CLIMA LABORAL', M, 22);
+  doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+  doc.text(companyName, M, 36);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,195,190);
+  doc.text('Evaluación Interna bajo Marco de Control Interno COSO', M, 46);
+  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + DATA.length + '  ·  Áreas: ' + getAreas().length, M, 54);
+
+  y = 75;
+
+  // Footer first page
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 285, W, 12, 'F');
+  doc.setFontSize(7); doc.setTextColor(...WHITE);
+  doc.text('CONFIDENCIAL · Informe de Clima Laboral · ' + companyName, M, 292);
+  doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
+  doc.setTextColor(0,0,0);
+
+  // ══ KPIs ══
+  sectionTitle('1. Indicadores Clave de Desempeño', 0);
+  const kpiW = (W - M*2 - 6) / 4;
+  const kpiY = y;
+  kpiBox(M,           kpiY, kpiW, 20, 'Score Global',    global.toFixed(2), global>=3?GREEN:global>=2.3?AMBER:RED);
+  kpiBox(M+kpiW+2,    kpiY, kpiW, 20, 'Positivas',       positivePct+'%',   GREEN);
+  kpiBox(M+kpiW*2+4,  kpiY, kpiW, 20, 'Negativas',       negativePct+'%',   RED);
+  kpiBox(M+kpiW*3+6,  kpiY, kpiW, 20, 'Áreas Críticas',  critAreas.length,  critAreas.length>0?RED:GREEN);
+  y += 25;
+
+  // Score level badge
+  const lvlColor = global>=3?GREEN:global>=2.3?AMBER:RED;
+  doc.setFillColor(...lvlColor);
+  doc.rect(M, y, 45, 7, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+  doc.text('NIVEL: ' + scoreLabel.toUpperCase(), M+3, y+5);
+  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  y += 12;
+
+  // ══ DIAGNÓSTICO EJECUTIVO ══
+  sectionTitle('2. Diagnóstico Ejecutivo — Ambiente de Control COSO');
+
+  const diagnosticoBase = `Con fundamento en la Encuesta de Clima Laboral aplicada a ${DATA.length} colaboradores de ${getAreas().length} áreas, y considerando los cinco componentes del Marco de Control Interno COSO, se presenta el siguiente diagnóstico ejecutivo.`;
+  paragraph(diagnosticoBase);
+
+  const diagnosticoScore = global>=3
+    ? `El score global de ${global.toFixed(2)}/4.0 refleja un clima laboral SATISFACTORIO. El ${positivePct}% de las respuestas se ubica en niveles positivos (3-4), lo que indica un entorno organizacional favorable. Se recomienda mantener las prácticas actuales y continuar fortaleciendo las dimensiones con menor puntaje.`
+    : global>=2.3
+    ? `El score global de ${global.toFixed(2)}/4.0 indica un clima laboral en nivel MODERADO que requiere atención. El ${negativePct}% de las respuestas se ubica en niveles negativos (1-2), señalando áreas de mejora que deben atenderse antes de convertirse en riesgos críticos. Desde la perspectiva COSO, esta situación compromete el Ambiente de Control que sustenta todo el sistema de control interno.`
+    : `El score global de ${global.toFixed(2)}/4.0 configura un escenario CRÍTICO que requiere intervención inmediata. El ${negativePct}% de las respuestas corresponde a niveles negativos (1-2), lo que representa un riesgo organizacional significativo. Bajo el marco COSO, esta condición deteriora el Ambiente de Control, debilitando los valores, la estructura de autoridad y la cultura de cumplimiento necesarios para la operación eficaz de la organización.`;
+  paragraph(diagnosticoScore);
+
+  // ══ RESULTADOS POR ÁREA ══
+  sectionTitle('3. Evaluación de Riesgos por Área');
+
+  if (critAreas.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
+    doc.text(t('AREAS CRITICAS (score < 2.3) - Intervencion Inmediata:'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    critAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+  }
+  if (warnAreas.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...AMBER);
+    doc.text(t('AREAS EN ATENCION (2.3-3.0) - Seguimiento:'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    warnAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+  }
+  if (goodAreas.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
+    doc.text(t('AREAS SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    goodAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+  }
+
+  // ══ ACTIVIDADES DE CONTROL ══
+  sectionTitle('4. Actividades de Control — Resultados por Dimensión');
+
+  if (critDims.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
+    doc.text(t('DIMENSIONES CRITICAS (< 2.3):'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    critDims.forEach(d => scoreRow(t(d.label), d.avg));
+  }
+  if (warnDims.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...AMBER);
+    doc.text(t('DIMENSIONES EN ATENCION (2.3-3.0):'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    warnDims.forEach(d => scoreRow(t(d.label), d.avg));
+  }
+  if (goodDims.length > 0) {
+    checkY(6);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
+    doc.text(t('DIMENSIONES SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    goodDims.forEach(d => scoreRow(t(d.label), d.avg));
+  }
+
+  // ══ INFORMACIÓN Y COMUNICACIÓN ══
+  sectionTitle('5. Información y Comunicación — Hallazgos Cualitativos');
+
+  // Hallazgos dinámicos desde respuestas abiertas
+  const _propuestas = DATA.map(d => d.propuesta || d['Propuestas de mejora'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
+  const _observaciones = DATA.map(d => d.observaciones || d['Observaciones'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
+  const _comentarios = [..._propuestas, ..._observaciones].slice(0, 5);
+  let hallazgos;
+  if (_comentarios.length > 0) {
+    hallazgos = _comentarios.map(c => t(c.length > 220 ? c.substring(0,220)+'...' : c));
+  } else {
+    hallazgos = [];
+    if (critAreas.length > 0) hallazgos.push(t('Areas criticas: ' + critAreas.map(a=>a.area).join(', ') + ' requieren intervencion inmediata.'));
+    if (critDims.length > 0) hallazgos.push(t('Dimensiones criticas: ' + critDims.slice(0,2).map(d=>d.label.substring(0,60)).join(' / ')));
+    const _allV = DATA.flatMap(d => (QUESTIONS||[]).map(q=>d[q.key])).filter(v=>v>=1&&v<=4);
+    const _negPct = _allV.length > 0 ? Math.round(_allV.filter(v=>v<=2).length/_allV.length*100) : 0;
+    if (_negPct >= 40) hallazgos.push('El ' + _negPct + '% de respuestas negativas indica areas de mejora urgente.');
+    if (hallazgos.length === 0) hallazgos.push('Score global ' + global.toFixed(2) + '/4.0. Complementar con entrevistas cualitativas.');
+  }
+  hallazgos.forEach((h, i) => {
+    checkY(12);
+    doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.text((i+1) + '.', M, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40);
+    const lines = doc.splitTextToSize(h, W - M*2 - 6);
+    doc.text(lines, M+6, y);
+    y += lines.length * 4.8 + 3;
+  });
+
+  // ══ CONCLUSIÓN ══
+  sectionTitle('6. Conclusión y Recomendaciones — Monitoreo COSO');
+
+  const conclusion = `Los resultados de esta evaluación configuran un escenario de riesgo ${global<2.3?'ALTO':global<3?'MODERADO':'BAJO'} para la continuidad operativa y la retención del talento. Con ${totalAlerts} alertas críticas activas, un score global de ${global.toFixed(2)}/4.0 y ${negativePct}% de respuestas negativas, se requiere que la Dirección General impulse un plan de acción estructurado bajo los principios del Marco COSO.`;
+  paragraph(conclusion);
+
+  y += 2;
+  const prioridades = [
+    { nivel: 'PRIORIDAD ALTA', color: RED, items: [
+      'Programa de desarrollo de competencias para mandos medios (liderazgo, comunicación asertiva, gestión de equipos).',
+      'Revisión y aplicación consistente del organigrama y políticas internas, sin excepciones.',
+      critAreas.length>0 ? 'Diagnóstico cualitativo en áreas críticas: ' + critAreas.map(a=>a.area).join(', ') + '.' : null,
+    ].filter(Boolean)},
+    { nivel: 'PRIORIDAD MEDIA', color: AMBER, items: [
+      'Implementar formatos formales de asignación de actividades con responsables, alcances y fechas.',
+      'Establecer canales de retroalimentación estructurados entre PM, Diseño y áreas de producción.',
+      'Protocolo documentado para gestión de horas extras y acuerdos laborales.',
+    ]},
+    { nivel: 'MONITOREO CONTINUO', color: NAVY, items: [
+      'Programar segunda medición de clima laboral en un plazo no mayor a 6 meses.',
+      'Comunicar resultados y planes de mejora a todo el personal de manera transparente.',
+      'Reconocer públicamente las áreas y prácticas que muestran fortalezas identificadas.',
+    ]},
+  ];
+
+  prioridades.forEach(p => {
+    checkY(14);
+    doc.setFillColor(...p.color);
+    doc.rect(M, y, W-M*2, 6, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+    doc.text(p.nivel, M+3, y+4.2);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += 8;
+    p.items.forEach(item => {
+      checkY(10);
+      doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+      doc.text('•', M+2, y);
+      const lines = doc.splitTextToSize(item, W-M*2-8);
+      doc.setTextColor(44,42,40);
+      doc.text(lines, M+7, y);
+      y += lines.length * 4.8 + 2;
+    });
+    y += 3;
+  });
+
+  // ══ FIRMA ══
+  checkY(30);
+  y += 5;
+  doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
+  doc.line(M, y, W-M, y); y += 8;
+  doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text('Elaborado con base en ' + DATA.length + ' respuestas cuantitativas de ' + getAreas().length + ' áreas · Sistema ClimaIQ · ' + fechaHoy, W/2, y, {align:'center'});
+  y += 4;
+  doc.text('Metodología: Marco de Control Interno COSO · Escala de evaluación: 1 (Nunca) a 4 (Siempre)', W/2, y, {align:'center'});
+  y += 4;
+  doc.text('Este informe es de carácter estrictamente confidencial y de uso exclusivo de la Dirección General.', W/2, y, {align:'center'});
+
+  // Save
+  const filename = 'Informe_Clima_Laboral_' + companyName.replace(/\\s+/g,'_') + '_' + new Date().toISOString().split('T')[0] + '.pdf';
+  doc.save(filename);
+}
+
+
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// GENERAR INFORME WORD (.docx)
+// ═══════════════════════════════════════════════════════════════
+async function generarInformeWord() {
+  if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
+
+  const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
+  const fechaHoy = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'2-digit' });
+
+  // Calcular métricas
+  const areas   = getAreas();
+  const dims    = getDims();
+  const GLOBAL  = r2(avg(DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1 && v <= 4)));
+  const POS_PCT = Math.round(DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 3).length / DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1).length * 100);
+  const NEG_PCT = 100 - POS_PCT;
+  const areaData  = getAreaData();
+  const critAreas = areaData.filter(a => a.overall < 2.3);
+  const warnAreas = areaData.filter(a => a.overall >= 2.3 && a.overall < 3);
+  const goodAreas = areaData.filter(a => a.overall >= 3);
+  const critDims  = dims.filter(d => d.avg < 2.3);
+  const warnDims  = dims.filter(d => d.avg >= 2.3 && d.avg < 3);
+  const goodDims  = dims.filter(d => d.avg >= 3);
+  const scoreLabel = GLOBAL >= 3.5 ? 'Excelente' : GLOBAL >= 3 ? 'Bueno' : GLOBAL >= 2.3 ? 'Regular' : 'Crítico';
+  const totalAlerts = critDims.length + critAreas.length;
+
+  // Hallazgos dinámicos
+  const propuestas = DATA.map(d => d.propuesta||'').filter(t => t && t.length > 10 && t.toLowerCase() !== 'na');
+  const observaciones = DATA.map(d => d.observaciones||'').filter(t => t && t.length > 10 && t.toLowerCase() !== 'na');
+  const comentarios = [...propuestas, ...observaciones].slice(0, 6);
+  let hallazgos = [];
+  if (comentarios.length > 0) {
+    hallazgos = comentarios.map(c => c.length > 250 ? c.substring(0,250)+'...' : c);
+  } else {
+    if (critAreas.length > 0) hallazgos.push('Áreas con score crítico (' + critAreas.map(a=>a.area).join(', ') + '): requieren intervención inmediata.');
+    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label.substring(0,80)+'...').join(' / '));
+    if (NEG_PCT >= 40) hallazgos.push('El ' + NEG_PCT + '% de respuestas en niveles negativos (1-2) indica áreas de mejora urgente.');
+    if (hallazgos.length === 0) hallazgos.push('Score global: ' + GLOBAL.toFixed(2) + '/4.0. Se recomienda complementar con encuestas cualitativas.');
+  }
+
+  // Diagnóstico
+  const diagnostico = GLOBAL >= 3
+    ? `El score global de ${GLOBAL.toFixed(2)}/4.0 refleja un clima laboral SATISFACTORIO. El ${POS_PCT}% de las respuestas se ubica en niveles positivos (3-4), indicando un entorno organizacional favorable.`
+    : GLOBAL >= 2.3
+    ? `El score global de ${GLOBAL.toFixed(2)}/4.0 indica un clima laboral en nivel MODERADO. El ${NEG_PCT}% de respuestas en niveles negativos requiere atención antes de convertirse en riesgos críticos.`
+    : `El score global de ${GLOBAL.toFixed(2)}/4.0 configura un escenario CRÍTICO. El ${NEG_PCT}% de respuestas en niveles negativos representa un riesgo organizacional significativo que compromete el Ambiente de Control COSO.`;
+
+  const conclusion = `Los resultados configuran un escenario de riesgo ${GLOBAL < 2.3 ? 'ALTO' : GLOBAL < 3 ? 'MODERADO' : 'BAJO'} para la continuidad operativa. Con ${totalAlerts} alertas críticas, score global de ${GLOBAL.toFixed(2)}/4.0 y ${NEG_PCT}% de respuestas negativas, se requiere un plan de acción estructurado bajo el Marco COSO.`;
+
+  // Construir contenido del documento como HTML para convertir a DOCX via Blob
+  // Usamos un formato RTF simple que Word puede abrir directamente
+  const rtf = buildRTF({
+    company: companyName, fecha: fechaHoy,
+    total: DATA.length, totalAreas: areas.length,
+    GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
+    critAreas, warnAreas, goodAreas,
+    critDims, warnDims, goodDims,
+    hallazgos, diagnostico, conclusion
+  });
+
+  const blob = new Blob([rtf], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Informe_Clima_${companyName.replace(/\\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
+  critAreas, warnAreas, goodAreas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion }) {
+
+  const sc = v => v >= 3 ? '1A5C3A' : v >= 2.3 ? '8A5210' : '8B2A1F';
+  const lv = v => v >= 3 ? 'Satisfactorio' : v >= 2.3 ? 'Atención' : 'Crítico';
+
+  // Build HTML that Word can open as editable document
+  let html = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #2C2A28; margin: 2cm; }
+  h1 { font-size: 22pt; color: #1A2F4A; margin-bottom: 4pt; }
+  h2 { font-size: 13pt; color: #1A2F4A; border-bottom: 2px solid #E2DDD8; padding-bottom: 4pt; margin-top: 18pt; }
+  h3 { font-size: 11pt; color: #1A2F4A; margin-top: 12pt; }
+  p { text-align: justify; line-height: 1.6; margin: 6pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
+  th { background-color: #1A2F4A; color: white; padding: 6pt 8pt; font-size: 9pt; text-align: left; }
+  td { padding: 5pt 8pt; border: 1px solid #E2DDD8; font-size: 9pt; }
+  tr:nth-child(even) td { background-color: #F8F6F2; }
+  .kpi-table { width: 100%; }
+  .kpi-table td { text-align: center; border: 1px solid #E2DDD8; padding: 10pt; }
+  .kpi-value { font-size: 20pt; font-weight: bold; }
+  .kpi-label { font-size: 8pt; color: #9A9490; text-transform: uppercase; }
+  .section-box { background: #F0EDE8; border-left: 4px solid #1A2F4A; padding: 8pt 12pt; margin: 8pt 0; }
+  .critico { color: #8B2A1F; font-weight: bold; }
+  .atencion { color: #8A5210; font-weight: bold; }
+  .satisfactorio { color: #1A5C3A; font-weight: bold; }
+  .prio-alta { background: #8B2A1F; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
+  .prio-media { background: #8A5210; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
+  .prio-monitoreo { background: #1A2F4A; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
+  ul { margin: 4pt 0; padding-left: 18pt; }
+  li { margin: 4pt 0; text-align: justify; }
+  .confidencial { color: #8B2A1F; font-weight: bold; }
+  .firma-linea { border-top: 1px solid #9A9490; margin-top: 30pt; padding-top: 4pt; width: 45%; display: inline-block; }
+
+/* ── SELECTOR & COMPARADOR ── */
+.sheet-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.8rem; margin-top:1rem; }
+.sheet-card { background:var(--surface); border:1px solid var(--border); padding:1.2rem 1.4rem; cursor:pointer; transition:all .15s; position:relative; }
+.sheet-card:hover { border-color:var(--navy); box-shadow:0 2px 12px rgba(11,31,58,.1); }
+.sheet-card.active-sheet { border-color:var(--green); border-width:2px; }
+.sheet-card .sc-name { font-weight:600; font-size:.95rem; color:var(--navy); margin-bottom:.3rem; }
+.sheet-card .sc-rows { font-size:.75rem; color:var(--ink3); }
+.sheet-card .sc-badge { position:absolute; top:.7rem; right:.8rem; font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:.2rem .5rem; border-radius:2px; }
+.sc-badge.current { background:var(--green-bg); color:var(--green); }
+.cmp-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1rem; }
+.cmp-select { background:var(--surface); border:1px solid var(--border); padding:1.2rem; }
+.cmp-select label { font-size:.65rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); display:block; margin-bottom:.5rem; }
+.cmp-select select { width:100%; padding:.5rem .7rem; border:1px solid var(--border); background:var(--bg); font-family:inherit; font-size:.85rem; }
+.cmp-btn { margin-top:1rem; }
+.cmp-results { margin-top:1.5rem; }
+.cmp-metric { display:flex; align-items:center; gap:1rem; padding:.8rem 1rem; border-bottom:1px solid var(--border); }
+.cmp-metric:last-child { border-bottom:none; }
+.cmp-label { flex:1; font-size:.82rem; color:var(--ink2); }
+.cmp-val { font-weight:700; font-size:1rem; min-width:50px; text-align:center; }
+.cmp-arrow { font-size:1.1rem; }
+.cmp-arrow.up { color:var(--green); }
+.cmp-arrow.dn { color:var(--red); }
+.cmp-arrow.eq { color:var(--ink3); }
+@media(max-width:600px){ .cmp-grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div style="background:#1A2F4A; padding:30pt; margin:-2cm -2cm 20pt -2cm; color:white;">
+  <p style="font-size:8pt; color:#B8892A; font-weight:bold; text-transform:uppercase; letter-spacing:2px; margin:0 0 6pt 0; text-align:left;">Informe de Clima Laboral</p>
+  <h1 style="color:white; margin:0 0 8pt 0; font-size:26pt;">${company}</h1>
+  <p style="color:#C8C3BE; margin:0 0 4pt 0; text-align:left;">Evaluación Interna bajo Marco de Control Interno COSO</p>
+  <p style="color:#C8C3BE; font-size:9pt; margin:0; text-align:left;">Fecha: ${fecha} · Participantes: ${total} · Áreas: ${totalAreas}</p>
+</div>
+
+<p><span class="confidencial">CONFIDENCIAL</span> — Uso exclusivo de Dirección General</p>
+
+<!-- SECCIÓN 1: KPIs -->
+<h2>1. Indicadores Clave de Desempeño</h2>
+<table class="kpi-table">
+<tr>
+  <td><div class="kpi-label">Score Global</div><div class="kpi-value" style="color:#${sc(GLOBAL)}">${GLOBAL.toFixed(2)}</div><div style="font-size:8pt;color:#9A9490;">/ 4.0</div></td>
+  <td><div class="kpi-label">Respuestas Positivas</div><div class="kpi-value" style="color:#1A5C3A">${POS_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 3-4</div></td>
+  <td><div class="kpi-label">Respuestas Negativas</div><div class="kpi-value" style="color:#8B2A1F">${NEG_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 1-2</div></td>
+  <td><div class="kpi-label">Áreas Críticas</div><div class="kpi-value" style="color:#${critAreas.length>0?'8B2A1F':'1A5C3A'}">${critAreas.length}</div><div style="font-size:8pt;color:#9A9490;">Score &lt; 2.3</div></td>
+  <td><div class="kpi-label">Participantes</div><div class="kpi-value" style="color:#1A2F4A">${total}</div><div style="font-size:8pt;color:#9A9490;">${totalAreas} áreas</div></td>
+</tr>
+</table>
+<p><strong>NIVEL: ${scoreLabel.toUpperCase()}</strong></p>
+
+<!-- SECCIÓN 2: DIAGNÓSTICO -->
+<h2>2. Diagnóstico Ejecutivo — Ambiente de Control COSO</h2>
+<p>Con fundamento en la Encuesta de Clima Laboral aplicada a <strong>${total} colaboradores</strong> de <strong>${totalAreas} áreas</strong>, y considerando los cinco componentes del Marco COSO, se presenta el siguiente diagnóstico ejecutivo para consideración de la Dirección General.</p>
+<p>${diagnostico}</p>
+
+<!-- SECCIÓN 3: ÁREAS -->
+<h2>3. Evaluación de Riesgos por Área</h2>
+<table>
+<tr><th>Área</th><th>Participantes</th><th>Score</th><th>Nivel</th></tr>
+${[...critAreas,...warnAreas,...goodAreas].map(a=>`
+<tr>
+  <td><strong>${a.area}</strong></td>
+  <td style="text-align:center">${a.count}</td>
+  <td style="text-align:center;color:#${sc(a.overall)};font-weight:bold">${a.overall.toFixed(2)}</td>
+  <td style="color:#${sc(a.overall)};font-weight:bold">${lv(a.overall)}</td>
+</tr>`).join('')}
+</table>
+
+${critAreas.length>0?`<p><span class="critico">Áreas críticas (score &lt; 2.3) — Intervención inmediata:</span> ${critAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${warnAreas.length>0?`<p><span class="atencion">Áreas en atención (2.3–3.0):</span> ${warnAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${goodAreas.length>0?`<p><span class="satisfactorio">Áreas satisfactorias (≥ 3.0):</span> ${goodAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+
+<!-- SECCIÓN 4: DIMENSIONES -->
+<h2>4. Actividades de Control — Resultados por Dimensión</h2>
+${critDims.length>0?`<p><span class="critico">Dimensiones críticas (&lt; 2.3):</span></p><ul>${critDims.map(d=>`<li>${d.label} — <strong style="color:#8B2A1F">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
+${warnDims.length>0?`<p><span class="atencion">Dimensiones en atención (2.3–3.0):</span></p><ul>${warnDims.map(d=>`<li>${d.label} — <strong style="color:#8A5210">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
+${goodDims.length>0?`<p><span class="satisfactorio">Dimensiones satisfactorias (≥ 3.0):</span></p><ul>${goodDims.map(d=>`<li>${d.label} — <strong style="color:#1A5C3A">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
+
+<!-- SECCIÓN 5: HALLAZGOS -->
+<h2>5. Información y Comunicación — Hallazgos Cualitativos</h2>
+<p>${hallazgos.length > 0 && DATA.filter(d=>(d.propuesta||'').length>10).length > 0 
+  ? 'El análisis de las respuestas abiertas de los colaboradores revela los siguientes hallazgos:'
+  : 'El análisis cuantitativo revela los siguientes hallazgos principales:'}</p>
+<ol>${hallazgos.map(h=>`<li><p>${h}</p></li>`).join('')}</ol>
+
+<!-- SECCIÓN 6: CONCLUSIÓN -->
+<h2>6. Conclusión y Recomendaciones — Monitoreo COSO</h2>
+<p>${conclusion}</p>
+
+<div class="prio-alta">PRIORIDAD ALTA — ACCIÓN INMEDIATA</div>
+<ul>
+  <li>Programa de desarrollo de competencias para mandos medios: liderazgo, comunicación asertiva y gestión de equipos.</li>
+  <li>Revisión y aplicación consistente del organigrama y políticas internas, sin excepciones ni preferencias.</li>
+  ${critAreas.length>0?`<li>Diagnóstico cualitativo urgente en áreas críticas: ${critAreas.map(a=>a.area).join(', ')}.</li>`:''}
+</ul>
+
+<div class="prio-media">PRIORIDAD MEDIA — CORTO PLAZO</div>
+<ul>
+  <li>Implementar formatos formales de asignación de actividades con responsables, alcances y fechas definidas.</li>
+  <li>Establecer canales de retroalimentación estructurados entre áreas.</li>
+  <li>Actualizar y difundir el organigrama con sesión de inducción para nuevo personal.</li>
+</ul>
+
+<div class="prio-monitoreo">MONITOREO CONTINUO</div>
+<ul>
+  <li>Programar segunda medición de clima laboral en no más de 6 meses.</li>
+  <li>Comunicar resultados y planes de mejora a todo el personal de manera transparente.</li>
+  <li>Reconocer públicamente las áreas y prácticas que muestran fortalezas.</li>
+</ul>
+
+<br><br>
+<hr style="border:1px solid #E2DDD8;">
+<table style="width:100%;border:none;">
+<tr>
+  <td style="border:none;width:45%;padding-top:30pt;">
+    <div style="border-top:1px solid #9A9490;padding-top:4pt;">
+      <p style="margin:0;font-size:9pt;">Elaborado por</p>
+      <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Recursos Humanos · ${company}</p>
+    </div>
+  </td>
+  <td style="border:none;width:10%;"></td>
+  <td style="border:none;width:45%;padding-top:30pt;">
+    <div style="border-top:1px solid #9A9490;padding-top:4pt;">
+      <p style="margin:0;font-size:9pt;">Revisado por</p>
+      <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Dirección General</p>
+    </div>
+  </td>
+</tr>
+</table>
+<p style="text-align:center;font-size:8pt;color:#9A9490;font-style:italic;margin-top:20pt;">
+Documento confidencial. Elaborado con base en ${total} respuestas de ${totalAreas} áreas · Sistema ClimaIQ · ${fecha}
+</p>
+
+</body>
+</html>`;
+
+  return html;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// SELECTOR DE ENCUESTA
+// ══════════════════════════════════════════════════════════════
+let AVAILABLE_SHEETS = [];
+let CURRENT_SHEET = '';
+
+async function renderSelector() {
+  const wrap = document.getElementById('sheetListWrap');
+  if (!URL_GAS) {
+    wrap.innerHTML = '<div class="banner error">Primero conecta tu Apps Script en la sección Conexión.</div>';
+    return;
+  }
+  wrap.innerHTML = '<div class="banner loading"><span class="spin"></span> Cargando hojas disponibles...</div>';
+  try {
+    const res = await fetch(URL_GAS + '?action=listSheets');
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    AVAILABLE_SHEETS = json.sheets || [];
+
+    if (!AVAILABLE_SHEETS.length) {
+      wrap.innerHTML = '<div class="banner error">No se encontraron hojas con datos.</div>'; return;
+    }
+
+    const cards = AVAILABLE_SHEETS.map(s => {
+      const isCurrent = s.name === CURRENT_SHEET;
+      return `<div class="sheet-card ${isCurrent ? 'active-sheet' : ''}" onclick="loadSheet('${s.name.replace(/'/g,"\'")}')">
+        <div class="sc-name">${s.name}</div>
+        <div class="sc-rows">${s.rows} respuesta${s.rows !== 1 ? 's' : ''}</div>
+        ${isCurrent ? '<span class="sc-badge current">Activa</span>' : ''}
+      </div>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div style="font-size:.8rem;color:var(--ink3);margin-bottom:.8rem;">
+        ${AVAILABLE_SHEETS.length} encuesta${AVAILABLE_SHEETS.length !== 1 ? 's' : ''} encontrada${AVAILABLE_SHEETS.length !== 1 ? 's' : ''}
+        ${CURRENT_SHEET ? ' · Analizando: <strong>' + CURRENT_SHEET + '</strong>' : ''}
+      </div>
+      <div class="sheet-list">${cards}</div>`;
+  } catch(err) {
+    wrap.innerHTML = '<div class="banner error">Error al cargar hojas: ' + err.message + '</div>';
+  }
+}
+
+async function loadSheet(sheetName) {
+  if (!URL_GAS) return;
+  CURRENT_SHEET = sheetName;
+  setSt('loading', 'Cargando ' + sheetName + '...');
+  try {
+    const res = await fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(sheetName));
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Error');
+    DATA = normalizeData(json.data || []);
+    QUESTIONS = normalizeQuestions(json.questions || []);
+    lastUpdate = new Date();
+    document.getElementById('tbCompany').textContent = '· ' + sheetName;
+    document.getElementById('btnPDF').disabled = false;
+    document.getElementById('btnWord').disabled = false;
+    document.getElementById('btnRefresh').disabled = false;
+    if (!DATA.length) { setSt('ok', 'Sin respuestas'); return; }
+    renderAll();
+    setSt('ok', sheetName + ' · ' + DATA.length + ' respuestas');
+    renderSelector(); // refresh selector to show active
+    goTo('overview');
+  } catch(err) {
+    setSt('error', 'Error: ' + err.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// COMPARADOR DE ENCUESTAS
+// ══════════════════════════════════════════════════════════════
+let CMP_DATA_A = null, CMP_DATA_B = null, CMP_QS_A = [], CMP_QS_B = [];
+
+async function renderComparar() {
+  const wrap = document.getElementById('compararWrap');
+  if (!URL_GAS) {
+    wrap.innerHTML = '<div class="banner error">Primero conecta tu Apps Script en Conexión.</div>'; return;
+  }
+  // Load sheet list
+  let sheets = AVAILABLE_SHEETS;
+  if (!sheets.length) {
+    try {
+      const res = await fetch(URL_GAS + '?action=listSheets');
+      const json = await res.json();
+      sheets = json.sheets || [];
+      AVAILABLE_SHEETS = sheets;
+    } catch(e) { sheets = []; }
+  }
+
+  if (sheets.length < 2) {
+    wrap.innerHTML = '<div class="banner error">Necesitas al menos 2 encuestas para comparar.</div>'; return;
+  }
+
+  const opts = sheets.map(s => `<option value="${s.name}">${s.name} (${s.rows} resp.)</option>`).join('');
+
+  wrap.innerHTML = `
+    <div class="cmp-grid">
+      <div class="cmp-select">
+        <label>📅 Encuesta A (Base)</label>
+        <select id="cmpA">${opts}</select>
+      </div>
+      <div class="cmp-select">
+        <label>📅 Encuesta B (Comparar)</label>
+        <select id="cmpB">${sheets.length > 1 ? `<option value="${sheets[0].name}">${sheets[0].name}</option>` + sheets.slice(1).map(s=>`<option value="${s.name}" selected>${s.name} (${s.rows} resp.)</option>`).join('') : opts}</select>
+      </div>
+    </div>
+    <div class="cmp-btn">
+      <button class="btn btn-primary" onclick="ejecutarComparacion()">Comparar encuestas</button>
+    </div>
+    <div class="cmp-results" id="cmpResults"></div>`;
+}
+
+async function ejecutarComparacion() {
+  const nameA = document.getElementById('cmpA').value;
+  const nameB = document.getElementById('cmpB').value;
+  const res = document.getElementById('cmpResults');
+
+  if (nameA === nameB) { res.innerHTML = '<div class="banner error">Selecciona dos encuestas diferentes.</div>'; return; }
+  res.innerHTML = '<div class="banner loading"><span class="spin"></span> Cargando datos...</div>';
+
+  try {
+    const [rA, rB] = await Promise.all([
+      fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameA)).then(r => r.json()),
+      fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameB)).then(r => r.json())
+    ]);
+    if (!rA.success) throw new Error('Error en ' + nameA + ': ' + rA.error);
+    if (!rB.success) throw new Error('Error en ' + nameB + ': ' + rB.error);
+
+    const dA = normalizeData(rA.data || []);
+    const dB = normalizeData(rB.data || []);
+    const qA = normalizeQuestions(rA.questions || []);
+    const qB = normalizeQuestions(rB.questions || []);
+
+    const avgAll = (d, qs) => {
+      const vals = d.flatMap(r => qs.map(q => r[q.key])).filter(v => v >= 1 && v <= 4);
+      return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : 0;
+    };
+    const pct = (d, qs, min) => {
+      const all = d.flatMap(r => qs.map(q => r[q.key])).filter(v => v >= 1 && v <= 4);
+      return all.length ? Math.round(all.filter(v => v >= min).length / all.length * 100) : 0;
+    };
+    const areaAvg = (d) => {
+      const m = {};
+      d.forEach(r => { const a = r.area||'Sin área'; if (!m[a]) m[a]={s:0,n:0}; });
+      d.forEach(r => { const a = r.area||'Sin área'; const vals = Object.values(r).filter(v=>typeof v==='number'&&v>=1&&v<=4); if(vals.length){m[a].s+=vals.reduce((x,y)=>x+y,0)/vals.length;m[a].n++;} });
+      const crits = Object.entries(m).filter(([,v])=>v.n>0&&(v.s/v.n)<2.3).length;
+      return crits;
+    };
+
+    const gA = avgAll(dA, qA), gB = avgAll(dB, qB);
+    const pA = pct(dA, qA, 3), pB = pct(dB, qB, 3);
+    const nA = pct(dA, qA, 1) - pA, nB = pct(dB, qB, 1) - pB;
+    const cA = areaAvg(dA), cB = areaAvg(dB);
+
+    const row = (label, vA, vB, fmt, invertir) => {
+      const diff = vB - vA;
+      const mejor = invertir ? diff < 0 : diff > 0;
+      const igual = Math.abs(diff) < 0.05;
+      const arrow = igual ? '→' : mejor ? '▲' : '▼';
+      const cls = igual ? 'eq' : mejor ? 'up' : 'dn';
+      return `<div class="cmp-metric">
+        <div class="cmp-label">${label}</div>
+        <div class="cmp-val" style="color:var(--navy)">${fmt(vA)}</div>
+        <div class="cmp-arrow ${cls}">${arrow} ${fmt ? fmt(Math.abs(diff)) : ''}</div>
+        <div class="cmp-val" style="color:var(--${igual?'ink2':mejor?'green':'red'})">${fmt(vB)}</div>
+      </div>`;
+    };
+
+    // Find common questions for detail comparison
+    const commonQs = qA.filter(a => qB.some(b => b.label === a.label));
+    const qRows = commonQs.map(q => {
+      const avgQ = (d) => { const v = d.map(r=>r[q.key]).filter(v=>v>=1&&v<=4); return v.length?v.reduce((a,b)=>a+b,0)/v.length:0; };
+      const va = avgQ(dA), vb = avgQ(dB);
+      const diff = vb - va;
+      const mejor = diff > 0, igual = Math.abs(diff) < 0.05;
+      return `<div class="cmp-metric">
+        <div class="cmp-label" style="font-size:.75rem;">${q.label.substring(0,70)}${q.label.length>70?'...':''}</div>
+        <div class="cmp-val" style="font-size:.85rem;color:var(--navy)">${va.toFixed(2)}</div>
+        <div class="cmp-arrow ${igual?'eq':mejor?'up':'dn'}">${igual?'→':mejor?'▲':'▼'}</div>
+        <div class="cmp-val" style="font-size:.85rem;color:var(--${igual?'ink2':mejor?'green':'red'})">${vb.toFixed(2)}</div>
+      </div>`;
+    }).join('');
+
+    res.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;padding:.8rem;background:var(--surface);border:1px solid var(--border);">
+        <div style="text-align:center;font-size:.7rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;">
+          ${nameA}<br><span style="font-size:1.2rem;color:var(--navy);font-weight:400">${dA.length} resp.</span>
+        </div>
+        <div style="text-align:center;font-size:.7rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;">
+          ${nameB}<br><span style="font-size:1.2rem;color:var(--navy);font-weight:400">${dB.length} resp.</span>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);margin-bottom:1rem;">
+        <div style="padding:.6rem 1rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--border);">Métricas Generales</div>
+        ${row('Score Global (/4.0)', gA, gB, v=>v.toFixed(2), false)}
+        ${row('Respuestas Positivas (%)', pA, pB, v=>v+'%', false)}
+        ${row('Respuestas Negativas (%)', nA, nB, v=>v+'%', true)}
+        ${row('Áreas Críticas (< 2.3)', cA, cB, v=>v, true)}
+        ${row('Participantes', dA.length, dB.length, v=>v, false)}
+      </div>
+      ${commonQs.length ? `
+      <div style="background:var(--surface);border:1px solid var(--border);">
+        <div style="padding:.6rem 1rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--border);">Comparación por Pregunta (${commonQs.length} en común)</div>
+        ${qRows}
+      </div>` : '<div class="banner" style="margin-top:1rem;">Las preguntas son diferentes entre encuestas — no hay comparación por pregunta disponible.</div>'}`;
+  } catch(err) {
+    res.innerHTML = '<div class="banner error">Error: ' + err.message + '</div>';
+  }
+}
+</script>
+</body>
+</html>
