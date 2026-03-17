@@ -1609,7 +1609,7 @@ async function renderSelector() {
     const res = await fetch(URL_GAS + '?action=listSheets');
     const json = await res.json();
     if (!json.success) throw new Error(json.error);
-    AVAILABLE_SHEETS = json.sheets || [];
+    AVAILABLE_SHEETS = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA'));
 
     if (!AVAILABLE_SHEETS.length) {
       wrap.innerHTML = '<div class="banner error">No se encontraron hojas con datos.</div>'; return;
@@ -1686,7 +1686,7 @@ async function renderComparar() {
     try {
       const res = await fetch(URL_GAS + '?action=listSheets');
       const json = await res.json();
-      sheets = json.sheets || [];
+      sheets = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA'));
       AVAILABLE_SHEETS = sheets;
     } catch(e) { sheets = []; }
   }
