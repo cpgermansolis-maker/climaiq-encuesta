@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Grupo TODA — Encuesta de Clima Laboral</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1c3a5e;--gold:#C09648;--gold-light:#D4AF6A;--cream:#f7f4ef;--white:#fff;--ink:#1A1614;--ink2:#4A4440;--ink3:#8A837C;--border:#E4DDD4;--border-dark:#C8BFB4;--green:#27ae60;--green-pale:rgba(29,99,72,.07);--red:#8B2A1F;--shadow-sm:0 1px 6px rgba(11,31,58,.07);--shadow:0 4px 20px rgba(11,31,58,.10);--shadow-lg:0 12px 48px rgba(11,31,58,.14);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;scroll-behavior:smooth;}
+body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;line-height:1.6;}
+.page-wrap{display:flex;flex-direction:column;min-height:100vh;}
+.top-strip{height:4px;background:linear-gradient(90deg,var(--navy),var(--gold),var(--navy));}
+/* HEADER */
+.survey-header{background:var(--navy);color:#fff;padding:2.5rem 1.5rem 3rem;position:relative;overflow:hidden;}
+.survey-header::before{content:'';position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;border:1px solid rgba(192,150,72,.18);pointer-events:none;}
+.header-inner{max-width:660px;margin:0 auto;position:relative;z-index:1;}
+.logo-area{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:1.4rem;border-bottom:1px solid rgba(192,150,72,.22);}
+.logo-img{height:42px;object-fit:contain;filter:brightness(0) invert(1);opacity:.9;}
+.logo-company{font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:600;letter-spacing:.04em;}
+.logo-dept{font-size:.68rem;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-top:.15rem;}
+.header-eyebrow{font-size:.63rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.85rem;display:flex;align-items:center;gap:.6rem;}
+.header-eyebrow::before{content:'';display:block;width:22px;height:1px;background:var(--gold);}
+.header-title{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,5vw,2.6rem);font-weight:300;font-style:italic;line-height:1.15;margin-bottom:1rem;color:#fff;}
+.header-title strong{font-weight:600;font-style:normal;color:var(--gold-light);}
+.header-desc{font-size:.875rem;font-weight:300;color:rgba(255,255,255,.72);line-height:1.7;max-width:480px;margin-bottom:1.8rem;}
+.header-badges{display:flex;flex-wrap:wrap;gap:.5rem;}
+.hbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.7rem;font-weight:500;padding:.38rem .85rem;border:1px solid rgba(192,150,72,.32);color:rgba(255,255,255,.78);background:rgba(192,150,72,.07);}
+/* PROGRESS */
+.progress-section{background:#152D4E;padding:.75rem 1.5rem;position:sticky;top:0;z-index:150;box-shadow:0 2px 16px rgba(11,31,58,.35);}
+.progress-inner{max-width:660px;margin:0 auto;display:flex;align-items:center;gap:1rem;}
+.progress-track{flex:1;height:3px;background:rgba(255,255,255,.12);overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));width:0%;transition:width .5s ease;}
+.progress-pct{font-size:.7rem;font-weight:600;color:var(--gold-light);min-width:30px;text-align:right;}
+.progress-steps{font-size:.65rem;color:rgba(255,255,255,.4);}
+/* BODY */
+.survey-body{flex:1;padding:2rem 1.5rem 4rem;}
+.survey-inner{max-width:660px;margin:0 auto;display:flex;flex-direction:column;gap:1.4rem;}
+/* SECTIONS */
+.section{background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden;animation:fadeUp .4s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.section:nth-child(1){animation-delay:.05s}.section:nth-child(2){animation-delay:.1s}.section:nth-child(3){animation-delay:.15s}.section:nth-child(4){animation-delay:.2s}
+.section-head{display:flex;align-items:center;gap:.85rem;padding:1rem 1.4rem;border-bottom:1px solid var(--border);background:linear-gradient(to right,rgba(11,31,58,.03),transparent);}
+.section-num{width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.02rem;font-weight:600;color:var(--navy);flex:1;}
+.section-tag{font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.section-body{padding:1.4rem;}
+/* ANON */
+.anon-toggle{display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;border:1.5px solid var(--border);background:var(--cream);cursor:pointer;transition:all .2s;margin-bottom:1.3rem;position:relative;overflow:hidden;}
+.anon-toggle::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border-dark);transition:background .2s;}
+.anon-toggle.active{border-color:var(--navy);background:rgba(11,31,58,.03);}
+.anon-toggle.active::before{background:var(--navy);}
+.anon-icon-wrap{width:38px;height:38px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0;transition:background .2s;}
+.anon-toggle.active .anon-icon-wrap{background:var(--navy);}
+.anon-text{flex:1;}.anon-text h4{font-size:.86rem;font-weight:600;margin-bottom:.18rem;}.anon-text p{font-size:.74rem;color:var(--ink3);font-weight:300;}
+.anon-switch{width:42px;height:22px;border-radius:22px;background:var(--border-dark);position:relative;flex-shrink:0;transition:background .22s;}
+.anon-switch::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .22s;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+.anon-toggle.active .anon-switch{background:var(--navy);}
+.anon-toggle.active .anon-switch::after{transform:translateX(20px);}
+/* FORM FIELDS */
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:.95rem;}
+.field{display:flex;flex-direction:column;gap:.38rem;}
+.field.span2{grid-column:1/-1;}
+.field-label{font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.req{color:var(--red);margin-left:2px;}
+input[type=text],select,textarea{font-family:'Jost',sans-serif;font-size:16px;color:var(--ink);background:var(--cream);border:1px solid var(--border);padding:.7rem .9rem;outline:none;width:100%;transition:all .18s;-webkit-appearance:none;-moz-appearance:none;appearance:none;border-radius:0;}
+input:focus,select:focus,textarea:focus{border-color:var(--navy);background:#fff;box-shadow:0 0 0 3px rgba(11,31,58,.07);}
+input:disabled{opacity:.45;cursor:not-allowed;background:var(--border);}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A837C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .9rem center;padding-right:2.4rem;cursor:pointer;height:48px;}
+textarea{resize:vertical;min-height:82px;}
+/* SCALE */
+.scale-legend{background:linear-gradient(135deg,var(--navy),#1E3D62);padding:1rem 1.4rem;display:flex;align-items:center;flex-wrap:wrap;gap:.7rem;}
+.scale-legend-label{font-size:.63rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+.scale-items{display:flex;gap:.5rem;flex-wrap:wrap;flex:1;justify-content:flex-end;}
+.scale-item{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:rgba(255,255,255,.8);}
+.scale-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:700;color:#fff;flex-shrink:0;}
+/* QUESTIONS */
+.q-item{border-bottom:1px solid var(--border);transition:background .15s;}
+.q-item:last-child{border-bottom:none;}
+.q-item.answered{background:rgba(29,99,72,.025);}
+.q-text-row{padding:1.1rem 1.4rem .7rem;display:flex;align-items:flex-start;gap:.85rem;}
+.q-number{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:600;color:var(--gold);min-width:22px;line-height:1.4;flex-shrink:0;}
+.q-text{font-size:.88rem;line-height:1.52;color:var(--ink);flex:1;}
+.q-area-tag{display:inline-flex;align-items:center;gap:.2rem;font-size:.58rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:.15rem .45rem;background:rgba(29,99,72,.1);color:var(--green);border:1px solid rgba(29,99,72,.18);margin-left:.4rem;vertical-align:middle;white-space:nowrap;}
+.rating-row{padding:.6rem 1.4rem 1.1rem;display:flex;gap:.45rem;}
+.rating-opt{flex:1;}
+.rating-opt input[type=radio]{display:none;}
+.rating-face{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.28rem;padding:.65rem .2rem;border:1.5px solid var(--border);background:var(--cream);cursor:pointer;transition:all .15s;min-height:68px;position:relative;overflow:hidden;}
+.rating-face::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:transparent;transition:background .15s;}
+.rating-face:hover{border-color:var(--navy);background:#fff;transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+.rating-opt input[value="1"]:checked+.rating-face{border-color:#8B2A1F;background:#FBF0EF;}
+.rating-opt input[value="1"]:checked+.rating-face::before{background:#8B2A1F;}
+.rating-opt input[value="2"]:checked+.rating-face{border-color:#915A0E;background:#FDF5E8;}
+.rating-opt input[value="2"]:checked+.rating-face::before{background:#915A0E;}
+.rating-opt input[value="3"]:checked+.rating-face{border-color:#1A4F7A;background:#EBF2F8;}
+.rating-opt input[value="3"]:checked+.rating-face::before{background:#1A4F7A;}
+.rating-opt input[value="4"]:checked+.rating-face{border-color:var(--green);background:var(--green-pale);}
+.rating-opt input[value="4"]:checked+.rating-face::before{background:var(--green);}
+.r-value{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--ink2);line-height:1;}
+.rating-opt input[value="1"]:checked+.rating-face .r-value{color:#8B2A1F;}
+.rating-opt input[value="2"]:checked+.rating-face .r-value{color:#915A0E;}
+.rating-opt input[value="3"]:checked+.rating-face .r-value{color:#1A4F7A;}
+.rating-opt input[value="4"]:checked+.rating-face .r-value{color:var(--green);}
+.r-label{font-size:.58rem;font-weight:500;color:var(--ink3);text-align:center;line-height:1.15;}
+/* CONFIDENTIALITY */
+.conf-box{border:1px solid rgba(11,31,58,.14);background:linear-gradient(135deg,rgba(11,31,58,.03),rgba(192,150,72,.04));padding:1.1rem 1.4rem;display:flex;gap:.9rem;align-items:flex-start;}
+.conf-icon{font-size:1.2rem;flex-shrink:0;margin-top:.1rem;}
+.conf-text h4{font-family:'Cormorant Garamond',serif;font-size:.95rem;font-weight:600;color:var(--navy);margin-bottom:.25rem;}
+.conf-text p{font-size:.77rem;color:var(--ink3);font-weight:300;line-height:1.58;}
+/* SUBMIT */
+.submit-section{display:flex;flex-direction:column;align-items:center;gap:.9rem;}
+.btn-submit{background:var(--navy);color:#fff;border:none;padding:1rem 3rem;font-family:'Jost',sans-serif;font-size:.87rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .18s;min-width:220px;position:relative;overflow:hidden;}
+.btn-submit::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--gold);transform:scaleX(0);transition:transform .3s;}
+.btn-submit:hover{background:#152D4E;transform:translateY(-1px);box-shadow:var(--shadow);}
+.btn-submit:hover::before{transform:scaleX(1);}
+.submit-legal{font-size:.7rem;color:var(--ink3);text-align:center;max-width:380px;line-height:1.6;font-weight:300;}
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(10,20,36,.75);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;gap:1.4rem;}
+.loading-overlay.show{display:flex;}
+.loading-ring{width:50px;height:50px;border:2px solid rgba(192,150,72,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:.8rem;font-weight:500;color:rgba(255,255,255,.75);letter-spacing:.07em;}
+/* SUCCESS */
+.success-screen{display:none;flex:1;align-items:center;justify-content:center;padding:2.5rem 1.5rem;}
+.success-card{background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-lg);max-width:540px;width:100%;overflow:hidden;animation:successIn .6s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes successIn{from{opacity:0;transform:scale(.94) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.success-header{background:linear-gradient(135deg,var(--navy),#1E3D62);padding:2.2rem 2.2rem 1.8rem;text-align:center;position:relative;overflow:hidden;}
+.success-checkmark{width:68px;height:68px;border-radius:50%;border:2px solid rgba(192,150,72,.45);background:rgba(192,150,72,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;animation:checkPop .5s .3s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes checkPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.success-checkmark svg{width:30px;height:30px;stroke:var(--gold-light);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:50;stroke-dashoffset:50;animation:drawCheck .5s .6s ease forwards;}
+@keyframes drawCheck{to{stroke-dashoffset:0}}
+.success-eyebrow{font-size:.6rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.9rem;}
+.success-header h2{font-family:'Cormorant Garamond',serif;font-size:1.7rem;font-weight:300;font-style:italic;color:#fff;margin-bottom:.2rem;}
+.success-header h2 strong{font-weight:600;font-style:normal;color:var(--gold-light);}
+.success-body{padding:1.8rem 2rem;}
+.success-message{font-size:.88rem;color:var(--ink2);line-height:1.75;text-align:center;margin-bottom:1.4rem;font-weight:300;}
+.success-message strong{color:var(--ink);font-weight:600;}
+.commitments{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1.6rem;}
+.commitment-item{display:flex;align-items:flex-start;gap:.85rem;padding:.9rem 1rem;background:var(--cream);border:1px solid var(--border);border-left:3px solid var(--navy);}
+.commit-icon{font-size:.95rem;flex-shrink:0;margin-top:.1rem;}
+.commit-text h4{font-size:.8rem;font-weight:600;color:var(--navy);margin-bottom:.18rem;}
+.commit-text p{font-size:.74rem;color:var(--ink3);font-weight:300;line-height:1.5;}
+.success-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:1.3rem 0;}
+.success-footer-text{text-align:center;font-size:.76rem;color:var(--ink3);font-weight:300;line-height:1.65;font-style:italic;}
+.success-footer-text strong{color:var(--ink2);font-style:normal;font-weight:500;}
+.success-seal{text-align:center;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.seal-line{flex:1;height:1px;background:var(--border);max-width:55px;}
+/* FOOTER */
+.survey-footer{background:var(--navy);padding:1rem 1.5rem;text-align:center;}
+.footer-inner{max-width:660px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;}
+.footer-item{font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.33);display:flex;align-items:center;gap:.3rem;}
+.footer-dot{width:3px;height:3px;border-radius:50%;background:rgba(192,150,72,.4);}
+/* RESPONSIVE */
+@media(max-width:580px){
+  .survey-header{padding:1.8rem 1.1rem 2.2rem;}
+  .section-body{padding:1rem;}
+  .field-grid{grid-template-columns:1fr;}
+  .field.span2{grid-column:1;}
+  .rating-row{gap:.28rem;padding:.55rem .9rem 1rem;}
+  .rating-face{min-height:54px;padding:.45rem .15rem;}
+  .r-label{display:none;}
+  .r-value{font-size:1.1rem;}
+  .q-text-row{padding:.95rem .9rem .55rem;}
+  .q-text{font-size:.84rem;}
+  .survey-body{padding:1.5rem 1rem 3rem;}
+  .scale-legend{flex-direction:column;align-items:flex-start;gap:.5rem;padding:.9rem 1.1rem;}
+  .scale-items{justify-content:flex-start;}
+  .progress-section{padding:.6rem 1rem;}
+  .success-body{padding:1.4rem;}
+  .success-header{padding:1.8rem 1.2rem 1.4rem;}
+  .success-header h2{font-size:1.4rem;}
+}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-ring"></div>
+  <div class="loading-text">Enviando tu respuesta…</div>
+</div>
+<div class="page-wrap">
+  <div class="top-strip"></div>
+  <header class="survey-header">
+    <div class="header-inner">
+      <div class="logo-area"><img class="logo-img" src="data:image/png;base64,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" alt="Logo"><div class="logo-text"><div class="logo-company">Grupo TODA</div><div class="logo-dept">Centro Médico</div></div></div>
+      <div class="header-eyebrow">Evaluación Interna · Confidencial</div>
+      <h1 class="header-title">Encuesta de<br><strong>Clima Laboral</strong></h1>
+      <p class="header-desc">Estamos comprometidos con mantener un entorno de trabajo saludable, eficiente y basado en el respeto mutuo. Como parte de nuestras actividades de seguimiento, el Área de Auditoría está realizando un breve Diagnóstico de Dinámica de Equipo. El objetivo de esta encuesta es conocer su perspectiva sobre el estilo de supervisión, la claridad de sus funciones y el ambiente de colaboración dentro de su departamento.</p>
+      <div class="header-badges">
+        <div class="hbadge">🔒 100% Confidencial</div>
+        <div class="hbadge">⏱ 5 minutos aprox.</div>
+        <div class="hbadge">📊 Resultados anónimos</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-inner">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-pct" id="progressPct">0%</div>
+      <div class="progress-steps" id="progressSteps"></div>
+    </div>
+  </div>
+
+  <div class="survey-body" id="surveyBodyForm">
+    <div class="survey-inner">
+      <form id="surveyForm" novalidate>
+
+        <div class="section">
+          <div class="section-head">
+            <div class="section-num">01</div>
+            <div class="section-title">Información del Colaborador</div>
+            <div class="section-tag">Paso 1</div>
+          </div>
+          <div class="section-body">
+            <div class="anon-toggle" id="anonToggle" onclick="toggleAnon()">
+              <div class="anon-icon-wrap" id="anonIconWrap">🔒</div>
+              <div class="anon-text"><h4 id="anonTitle">Prefiero responder de forma anónima</h4><p id="anonDesc">Al activar esta opción, tu nombre no quedará registrado</p></div>
+              <div class="anon-switch" id="anonSwitch"></div>
+            </div>
+            <div class="field-grid">
+              <div class="field"><label class="field-label">Nombre completo <span class="req" id="nameReq">*</span></label><input type="text" name="nombre" id="nombreInput" placeholder="Tu nombre completo" autocomplete="name"></div>
+              <div class="field"><label class="field-label">Cargo / Puesto <span class="req">*</span></label><input type="text" name="cargo" placeholder="Tu cargo actual" required></div>
+              <div class="field"><label class="field-label">Jefe Inmediato <span class="req">*</span></label><input type="text" name="jefe" placeholder="Nombre de tu jefe directo" required></div>
+              <div class="field"><label class="field-label">Área de trabajo <span class="req">*</span></label>
+                <select name="area" id="areaSelect" required onchange="onAreaChange()">
+                  <option value="">Selecciona tu área</option>
+                  <option value="compras">Compras</option><option value="admin">Administración</option><option value="ventas">Ventas</option><option value="logistica">Operaciones</option><option value="area_1773771812060">Otra</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scale-legend">
+          <div class="scale-legend-label">Escala:</div>
+          <div class="scale-items">
+            <div class="scale-item"><div class="scale-dot" style="background:#8B2A1F">1</div>Nunca</div>
+            <div class="scale-item"><div class="scale-dot" style="background:#915A0E">2</div>Pocas veces</div>
+            <div class="scale-item"><div class="scale-dot" style="background:#1A4F7A">3</div>Frecuentemente</div>
+            <div class="scale-item"><div class="scale-dot" style="background:var(--green)">4</div>Siempre</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <div class="section-num">02</div>
+            <div class="section-title">Evaluación del Clima Laboral</div>
+            <div class="section-tag">Preguntas generales</div>
+          </div>
+          <div style="padding:0;"><div class="q-item" id="qi_q_global_0">
+      <div class="q-text-row">
+        <div class="q-number">1</div>
+        <div class="q-text">¿Consideras que el clima laboral en el área donde trabajas es bueno?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_0" value="1" onchange="onAnswer('q_global_0')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_0" value="2" onchange="onAnswer('q_global_0')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_0" value="3" onchange="onAnswer('q_global_0')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_0" value="4" onchange="onAnswer('q_global_0')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_1">
+      <div class="q-text-row">
+        <div class="q-number">2</div>
+        <div class="q-text">¿En el trabajo mis opiniones son tomadas en cuenta?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_1" value="1" onchange="onAnswer('q_global_1')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_1" value="2" onchange="onAnswer('q_global_1')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_1" value="3" onchange="onAnswer('q_global_1')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_1" value="4" onchange="onAnswer('q_global_1')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_2">
+      <div class="q-text-row">
+        <div class="q-number">3</div>
+        <div class="q-text">¿Las personas son tratadas con respeto, sin importar cuál sea su trabajo o área (acoso laboral)?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_2" value="1" onchange="onAnswer('q_global_2')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_2" value="2" onchange="onAnswer('q_global_2')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_2" value="3" onchange="onAnswer('q_global_2')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_2" value="4" onchange="onAnswer('q_global_2')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_3">
+      <div class="q-text-row">
+        <div class="q-number">4</div>
+        <div class="q-text">¿Consideras que las actividades que se te asignan son bien planeadas?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_3" value="1" onchange="onAnswer('q_global_3')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_3" value="2" onchange="onAnswer('q_global_3')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_3" value="3" onchange="onAnswer('q_global_3')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_3" value="4" onchange="onAnswer('q_global_3')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_4">
+      <div class="q-text-row">
+        <div class="q-number">5</div>
+        <div class="q-text">¿Mi líder en cada actividad me brinda información y retroalimentación necesaria para el logro del objetivo asignado?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_4" value="1" onchange="onAnswer('q_global_4')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_4" value="2" onchange="onAnswer('q_global_4')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_4" value="3" onchange="onAnswer('q_global_4')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_4" value="4" onchange="onAnswer('q_global_4')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_5">
+      <div class="q-text-row">
+        <div class="q-number">6</div>
+        <div class="q-text">¿El personal respeta las líneas de mando conforme al organigrama y procesos escritos?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_5" value="1" onchange="onAnswer('q_global_5')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_5" value="2" onchange="onAnswer('q_global_5')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_5" value="3" onchange="onAnswer('q_global_5')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_5" value="4" onchange="onAnswer('q_global_5')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_6">
+      <div class="q-text-row">
+        <div class="q-number">7</div>
+        <div class="q-text">¿Siente que cuenta con la autonomía necesaria para realizar su trabajo sin ser interrumpido constantemente?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_6" value="1" onchange="onAnswer('q_global_6')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_6" value="2" onchange="onAnswer('q_global_6')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_6" value="3" onchange="onAnswer('q_global_6')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_6" value="4" onchange="onAnswer('q_global_6')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_7">
+      <div class="q-text-row">
+        <div class="q-number">8</div>
+        <div class="q-text">¿Las tareas que se le asignan corresponden estrictamente a su descripción de puesto actual?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_7" value="1" onchange="onAnswer('q_global_7')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_7" value="2" onchange="onAnswer('q_global_7')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_7" value="3" onchange="onAnswer('q_global_7')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_7" value="4" onchange="onAnswer('q_global_7')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_8">
+      <div class="q-text-row">
+        <div class="q-number">9</div>
+        <div class="q-text">En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesional y respetuoso?
+'</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_8" value="1" onchange="onAnswer('q_global_8')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_8" value="2" onchange="onAnswer('q_global_8')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_8" value="3" onchange="onAnswer('q_global_8')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_8" value="4" onchange="onAnswer('q_global_8')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div><div class="q-item" id="qi_q_global_9">
+      <div class="q-text-row">
+        <div class="q-number">10</div>
+        <div class="q-text">¿Existe un ambiente donde se fomente el estudio y la capacitación constante?</div>
+      </div>
+      <div class="rating-row">
+        <label class="rating-opt">
+          <input type="radio" name="q_global_9" value="1" onchange="onAnswer('q_global_9')">
+          <div class="rating-face"><div class="r-value">1</div><div class="r-label">Nunca</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_9" value="2" onchange="onAnswer('q_global_9')">
+          <div class="rating-face"><div class="r-value">2</div><div class="r-label">Pocas veces</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_9" value="3" onchange="onAnswer('q_global_9')">
+          <div class="rating-face"><div class="r-value">3</div><div class="r-label">Frecuentemente</div></div>
+        </label>
+        <label class="rating-opt">
+          <input type="radio" name="q_global_9" value="4" onchange="onAnswer('q_global_9')">
+          <div class="rating-face"><div class="r-value">4</div><div class="r-label">Siempre</div></div>
+        </label>
+      </div>
+    </div></div>
+        </div>
+
+        <div class="section" id="areaSection" style="display:none;">
+          <div class="section-head">
+            <div class="section-num">03</div>
+            <div class="section-title" id="areaSectionTitle">Preguntas del Área</div>
+            <div class="section-tag">Específicas</div>
+          </div>
+          <div style="padding:0;" id="areaQsContainer"></div>
+        </div>
+
+        <div class="section" id="commentsSection">
+          <div class="section-head">
+            <div class="section-num" id="commentsSectionNum">03</div>
+            <div class="section-title">Propuestas y Comentarios</div>
+            <div class="section-tag">Opcional</div>
+          </div>
+          <div class="section-body">
+            <div class="field" style="margin-bottom:.9rem;"><label class="field-label">¿Qué propones para mejorar el clima laboral?</label><textarea name="propuesta" placeholder="Comparte tus ideas y sugerencias…" rows="3"></textarea></div>
+            <div class="field"><label class="field-label">Observaciones adicionales</label><textarea name="observaciones" placeholder="Cualquier comentario adicional…" rows="2"></textarea></div>
+          </div>
+        </div>
+
+        <div class="conf-box">
+          <div class="conf-icon">🛡️</div>
+          <div class="conf-text">
+            <h4>Compromiso de Confidencialidad</h4>
+            <p>Tus respuestas son estrictamente confidenciales. Los resultados se analizarán de forma agregada y nunca se identificará a ningún colaborador de manera individual.</p>
+          </div>
+        </div>
+
+        <div class="submit-section">
+          <button type="submit" class="btn-submit" id="submitBtn">Enviar mi evaluación</button>
+          <p class="submit-legal">Al enviar confirmas que tus respuestas son verídicas y has leído nuestro compromiso de confidencialidad.</p>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <div class="success-screen" id="successScreen">
+    <div class="success-card">
+      <div class="success-header">
+        <div class="success-eyebrow">Evaluación completada</div>
+        <div class="success-checkmark"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2>Gracias por tu <strong>participación</strong></h2>
+      </div>
+      <div class="success-body">
+        <p class="success-message">Tu evaluación ha sido registrada exitosamente. Tu voz contribuye directamente a fortalecer el ambiente de trabajo. <strong>Cada respuesta cuenta.</strong></p>
+        <div class="commitments">
+          <div class="commitment-item"><div class="commit-icon">🔒</div><div class="commit-text"><h4>Total confidencialidad</h4><p>Tus respuestas son estrictamente confidenciales. En ningún momento se revelará tu identidad de forma individual.</p></div></div>
+          <div class="commitment-item"><div class="commit-icon">📊</div><div class="commit-text"><h4>Uso responsable</h4><p>Los datos se analizarán de forma agregada y se usarán exclusivamente para mejorar el ambiente laboral.</p></div></div>
+          <div class="commitment-item"><div class="commit-icon">🤝</div><div class="commit-text"><h4>Compromiso de acción</h4><p>Nos comprometemos a comunicar los planes de mejora derivados de esta evaluación oportunamente.</p></div></div>
+        </div>
+        <div class="success-divider"></div>
+        <p class="success-footer-text">Si tienes dudas sobre el manejo de esta información, puedes contactar al área de <strong>Recursos Humanos</strong> a través de los canales habituales.</p>
+        <div class="success-seal"><div class="seal-line"></div>🛡 Información manejada con responsabilidad y ética<div class="seal-line"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="survey-footer">
+    <div class="footer-inner">
+      <div class="footer-item">🔒 Encuesta Confidencial</div>
+      <div class="footer-dot"></div>
+      <div class="footer-item">Grupo TODA</div>
+      <div class="footer-dot"></div>
+      <div class="footer-item">Datos protegidos</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+// ── CONFIGURACIÓN INTEGRADA (generada automáticamente por el Panel Admin) ──
+const APPS_SCRIPT_URL = '';
+const AREAS = [{"id":"compras","name":"Compras","customQ":[]},{"id":"admin","name":"Administración","customQ":[]},{"id":"ventas","name":"Ventas","customQ":[]},{"id":"logistica","name":"Operaciones","customQ":[]},{"id":"area_1773771812060","name":"Otra","customQ":[]}];
+const GLOBAL_QS_COUNT = 10;
+const SCALE = ["Nunca","Pocas veces","Frecuentemente","Siempre"];
+const SHOW_ANON = true;
+
+let isAnon = false;
+let currentAreaId = null;
+
+// ── ANONIMATO ──────────────────────────────────────────
+function toggleAnon() {
+  if (!SHOW_ANON) return;
+  isAnon = !isAnon;
+  const toggle = document.getElementById('anonToggle');
+  const ni = document.getElementById('nombreInput');
+  toggle.classList.toggle('active', isAnon);
+  document.getElementById('anonTitle').textContent = isAnon ? 'Respondiendo de forma anónima' : 'Prefiero responder de forma anónima';
+  document.getElementById('anonDesc').textContent = isAnon ? 'Tu nombre no quedará registrado' : 'Al activar esta opción, tu nombre no quedará registrado';
+  document.getElementById('anonIconWrap').textContent = isAnon ? '🔒' : '👤';
+  document.getElementById('nameReq').style.display = isAnon ? 'none' : 'inline';
+  ni.disabled = isAnon; ni.value = '';
+  ni.placeholder = isAnon ? 'Anónimo' : 'Tu nombre completo';
+  trackProgress();
+}
+
+// ── ÁREA ───────────────────────────────────────────────
+function onAreaChange() {
+  const areaId = document.getElementById('areaSelect').value;
+  currentAreaId = areaId;
+  const area = AREAS.find(a => a.id === areaId);
+  const sec = document.getElementById('areaSection');
+  const commNum = document.getElementById('commentsSectionNum');
+  if (area && area.customQ && area.customQ.length > 0) {
+    sec.style.display = 'block';
+    document.getElementById('areaSectionTitle').textContent = 'Evaluación · ' + area.name;
+    if (commNum) commNum.textContent = '04';
+    renderAreaQs(area);
+  } else {
+    sec.style.display = 'none';
+    if (commNum) commNum.textContent = '03';
+    document.getElementById('areaQsContainer').innerHTML = '';
+  }
+  trackProgress();
+}
+
+function renderAreaQs(area) {
+  const offset = GLOBAL_QS_COUNT;
+  document.getElementById('areaQsContainer').innerHTML = area.customQ.map((q, i) => {
+    const name = 'q_' + area.id + '_' + i;
+    return `<div class="q-item" id="qi_${name}">
+      <div class="q-text-row">
+        <div class="q-number">${offset + i + 1}</div>
+        <div class="q-text">${escHtml(q.text)}<span class="q-area-tag">📂 ${escHtml(area.name)}</span></div>
+      </div>
+      <div class="rating-row">${[1,2,3,4].map((v,vi) => `
+        <label class="rating-opt">
+          <input type="radio" name="${name}" value="${v}" onchange="onAnswer('${name}')">
+          <div class="rating-face"><div class="r-value">${v}</div><div class="r-label">${SCALE[vi]}</div></div>
+        </label>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── RESPUESTA ──────────────────────────────────────────
+function onAnswer(name) {
+  const el = document.getElementById('qi_' + name);
+  if (el) el.classList.add('answered');
+  trackProgress();
+}
+
+// ── PROGRESO ───────────────────────────────────────────
+function trackProgress() {
+  let total = 0, filled = 0;
+  const fields = ['cargo','jefe','area'];
+  if (!isAnon) fields.push('nombre');
+  fields.forEach(f => {
+    const el = document.querySelector('[name="' + f + '"]');
+    if (el) { total++; if (el.value.trim()) filled++; }
+  });
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    total++;
+    if (document.querySelector('[name="q_global_' + i + '"]:checked')) filled++;
+  }
+  if (currentAreaId) {
+    const area = AREAS.find(a => a.id === currentAreaId);
+    if (area) area.customQ.forEach((q, i) => {
+      if (q.required) { total++; if (document.querySelector('[name="q_' + currentAreaId + '_' + i + '"]:checked')) filled++; }
+    });
+  }
+  const pct = total > 0 ? Math.round(filled / total * 100) : 0;
+  const pf = document.getElementById('progressFill');
+  const pp = document.getElementById('progressPct');
+  const ps = document.getElementById('progressSteps');
+  if (pf) pf.style.width = pct + '%';
+  if (pp) pp.textContent = pct + '%';
+  if (ps) ps.textContent = filled + ' / ' + total;
+}
+
+document.getElementById('surveyForm').addEventListener('input', trackProgress);
+document.getElementById('surveyForm').addEventListener('change', trackProgress);
+
+// ── ENVIAR ─────────────────────────────────────────────
+document.getElementById('surveyForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const cargo  = document.querySelector('[name="cargo"]').value.trim();
+  const jefe   = document.querySelector('[name="jefe"]').value.trim();
+  const area   = document.querySelector('[name="area"]').value;
+  const nombre = isAnon ? 'Anónimo' : (document.querySelector('[name="nombre"]').value.trim());
+  if (!cargo || !jefe || !area) { alert('Por favor completa los campos obligatorios: Cargo, Jefe Inmediato y Área.'); return; }
+  if (!isAnon && !nombre) { alert('Por favor escribe tu nombre, o activa la opción de respuesta anónima.'); return; }
+  let missingQ = false;
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    if (!document.querySelector('[name="q_global_' + i + '"]:checked')) { missingQ = true; break; }
+  }
+  if (missingQ) { alert('Por favor responde todas las preguntas de evaluación general.'); return; }
+
+  const areaObj = AREAS.find(a => a.id === area);
+  const payload = {
+    nombre, cargo, jefe,
+    area: areaObj ? areaObj.name : area,
+    isAnonymous: isAnon,
+    propuesta:     (document.querySelector('[name="propuesta"]')?.value     || '').trim(),
+    observaciones: (document.querySelector('[name="observaciones"]')?.value || '').trim(),
+    timestamp: new Date().toISOString(),
+  };
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    const el = document.querySelector('[name="q_global_' + i + '"]:checked');
+    payload['q_global_' + i] = el ? parseInt(el.value) : null;
+  }
+  if (areaObj) areaObj.customQ.forEach((q, i) => {
+    const el = document.querySelector('[name="q_' + areaObj.id + '_' + i + '"]:checked');
+    payload['q_' + areaObj.id + '_' + i] = el ? parseInt(el.value) : null;
+  });
+
+  document.getElementById('loadingOverlay').classList.add('show');
+  document.getElementById('submitBtn').disabled = true;
+
+  let synced = false;
+  if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.trim()) {
+    try {
+      // Usamos no-cors + FormData para evitar bloqueos CORS en celulares
+      // Google Apps Script lee los datos desde e.parameter.payload
+      const form = new FormData();
+      form.append('payload', JSON.stringify(payload));
+      await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form, mode: 'no-cors' });
+      synced = true; // no-cors no devuelve respuesta, asumimos éxito
+    } catch(err) { synced = false; }
+  }
+
+  await new Promise(r => setTimeout(r, 800));
+  document.getElementById('loadingOverlay').classList.remove('show');
+
+  document.getElementById('surveyBodyForm').style.display = 'none';
+  const ps = document.getElementById('progressSection');
+  if (ps) ps.style.display = 'none';
+  document.getElementById('successScreen').style.display = 'flex';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+trackProgress();
+</script>
+</body>
+</html>
