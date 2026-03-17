@@ -1615,21 +1615,31 @@ async function renderSelector() {
       wrap.innerHTML = '<div class="banner error">No se encontraron hojas con datos.</div>'; return;
     }
 
-    const cards = AVAILABLE_SHEETS.map(s => {
-      const isCurrent = s.name === CURRENT_SHEET;
-      return `<div class="sheet-card ${isCurrent ? 'active-sheet' : ''}" onclick="loadSheet('${s.name.replace(/'/g,"\'")}')">
-        <div class="sc-name">${s.name}</div>
-        <div class="sc-rows">${s.rows} respuesta${s.rows !== 1 ? 's' : ''}</div>
-        ${isCurrent ? '<span class="sc-badge current">Activa</span>' : ''}
-      </div>`;
-    }).join('');
+    // Render cards
+    wrap.innerHTML = '';
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:.8rem;color:#888;margin-bottom:.8rem;';
+    infoDiv.innerHTML = AVAILABLE_SHEETS.length + ' encuesta' + (AVAILABLE_SHEETS.length !== 1 ? 's' : '') + ' encontrada' + (AVAILABLE_SHEETS.length !== 1 ? 's' : '') +
+      (CURRENT_SHEET ? ' &nbsp;·&nbsp; Analizando: <strong>' + CURRENT_SHEET + '</strong>' : '');
+    wrap.appendChild(infoDiv);
 
-    wrap.innerHTML = `
-      <div style="font-size:.8rem;color:var(--ink3);margin-bottom:.8rem;">
-        ${AVAILABLE_SHEETS.length} encuesta${AVAILABLE_SHEETS.length !== 1 ? 's' : ''} encontrada${AVAILABLE_SHEETS.length !== 1 ? 's' : ''}
-        ${CURRENT_SHEET ? ' · Analizando: <strong>' + CURRENT_SHEET + '</strong>' : ''}
-      </div>
-      <div class="sheet-list">${cards}</div>`;
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.8rem;';
+    wrap.appendChild(grid);
+
+    AVAILABLE_SHEETS.forEach(function(s) {
+      const isCurrent = s.name === CURRENT_SHEET;
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border:' + (isCurrent ? '2px solid #1A5C3A' : '1px solid #ddd') + ';padding:1.2rem 1.4rem;cursor:pointer;position:relative;border-radius:4px;';
+      card.onmouseover = function(){ if(!isCurrent) this.style.borderColor='#1C3A5E'; };
+      card.onmouseout  = function(){ if(!isCurrent) this.style.borderColor='#ddd'; };
+      card.innerHTML =
+        '<div style="font-weight:600;font-size:.95rem;color:#1C3A5E;margin-bottom:.3rem;">' + s.name + '</div>' +
+        '<div style="font-size:.75rem;color:#888;">' + s.rows + ' respuesta' + (s.rows !== 1 ? 's' : '') + '</div>' +
+        (isCurrent ? '<span style="position:absolute;top:.7rem;right:.8rem;font-size:.6rem;font-weight:700;text-transform:uppercase;padding:.2rem .5rem;background:#e8f5ee;color:#1A5C3A;border-radius:2px;">Activa</span>' : '');
+      card.onclick = (function(name){ return function(){ loadSheet(name); }; })(s.name);
+      grid.appendChild(card);
+    });
   } catch(err) {
     wrap.innerHTML = '<div class="banner error">Error al cargar hojas: ' + err.message + '</div>';
   }
