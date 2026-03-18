@@ -554,7 +554,7 @@ textarea{resize:vertical;min-height:82px;}
 
 <script>
 // ── CONFIGURACIÓN INTEGRADA (generada automáticamente por el Panel Admin) ──
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJ6IorTO2ZOe_00a7ydf2Hj7T4xO60OYXiYSBmuwGW2mLY0Ao0YZWNSnHP1SVeO_lb/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLLBomXa4OMnqpKKmEbK6Sc1o7re_5SeYOo_rjGhGHvc-suFjgVli0-mjKg_EIIpdZ/exec';
 const SHEET_NAME = 'Grupo TODA';
 const AREAS = [{"id":"compras","name":"Compras","customQ":[]},{"id":"admin","name":"Administración","customQ":[]},{"id":"ventas","name":"Ventas","customQ":[]},{"id":"logistica","name":"Operaciones","customQ":[]},{"id":"area_1773771812060","name":"Otra","customQ":[]}];
 const GLOBAL_QS_COUNT = 10;
@@ -675,6 +675,7 @@ document.getElementById('surveyForm').addEventListener('submit', async function(
   const areaObj = AREAS.find(a => a.id === area);
   const payload = {
     _sheetName: SHEET_NAME,
+    _labels: {"q_global_0": "¿Consideras que el clima laboral en el área donde trabajas es bueno?", "q_global_1": "¿En el trabajo mis opiniones son tomadas en cuenta?", "q_global_2": "¿Las personas son tratadas con respeto, sin importar cuál sea su trabajo o área (acoso laboral)?", "q_global_3": "¿Consideras que las actividades que se te asignan son bien planeadas?", "q_global_4": "¿Mi líder en cada actividad me brinda información y retroalimentación necesaria para el logro del objetivo asignado?", "q_global_5": "¿El personal respeta las líneas de mando conforme al organigrama y procesos escritos?", "q_global_6": "¿Siente que cuenta con la autonomía necesaria para realizar su trabajo sin ser interrumpido constantemente?", "q_global_7": "¿Las tareas que se le asignan corresponden estrictamente a su descripción de puesto actual?", "q_global_8": "En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesional y respetuoso?\n'", "q_global_9": "¿Existe un ambiente donde se fomente el estudio y la capacitación constante?"},
     nombre, cargo, jefe,
     area: areaObj ? areaObj.name : area,
     isAnonymous: isAnon,
