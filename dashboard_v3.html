@@ -510,7 +510,15 @@ function normalizeData(raw) {
   });
 }
 function normalizeQuestions(qs) {
-  return qs.filter(q => q && q.key).map(q => ({ key:String(q.key), label:String(q.label||q.key) }));
+  return qs.filter(q => q && q.key).map(q => {
+    let label = String(q.label || q.key);
+    // Si el label parece una clave técnica (q_xxx), intentar limpiarla
+    if (/^q_[a-z0-9_]+$/.test(label)) {
+      label = label.replace(/^q_/, '').replace(/_/g, ' ');
+      label = label.charAt(0).toUpperCase() + label.slice(1);
+    }
+    return { key: String(q.key), label };
+  });
 }
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -692,13 +700,13 @@ function renderOverview() {
           <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.5rem;">✓ FORTALEZAS</div>
           ${sorted.slice(0,3).map(d=>`
             <div class="alert-item">
-              <div class="alert-item-name">${esc(sf(d.label,50))}</div>
+              <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
           <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-top:.9rem;margin-bottom:.5rem;">✗ OPORTUNIDADES</div>
           ${sorted.slice(-3).reverse().map(d=>`
             <div class="alert-item">
-              <div class="alert-item-name">${esc(sf(d.label,50))}</div>
+              <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
         </div>
@@ -753,7 +761,7 @@ function renderDimensions() {
             ${sorted.map(d=>`
               <div class="dim-row">
                 <div class="dim-info">
-                  <div class="dim-name">${esc(sf(d.label,62))}</div>
+                  <div class="dim-name" title="${esc(d.label)}">${esc(sf(d.label,90))}</div>
                   <div class="dim-track"><div class="dim-fill" style="width:${(d.avg/4)*100}%;background:${barColor(d.avg)}"></div></div>
                 </div>
                 <div class="dim-num" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
@@ -778,7 +786,7 @@ function renderDimensions() {
             <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--green);">✓ SATISFACTORIO ≥ 3.0</div>
             ${dims.filter(d=>d.avg>=3).map(d=>`
               <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
-                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,85))}</span>
                 <span style="font-family:'DM Serif Display',serif;color:var(--green)">${d.avg.toFixed(2)}</span>
               </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Ninguna dimensión alcanza este nivel</div>'}
           </div>
@@ -786,7 +794,7 @@ function renderDimensions() {
             <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--amber);">⚠ ATENCIÓN 2.3 – 3.0</div>
             ${dims.filter(d=>d.avg>=2.3&&d.avg<3).map(d=>`
               <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
-                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,85))}</span>
                 <span style="font-family:'DM Serif Display',serif;color:var(--amber)">${d.avg.toFixed(2)}</span>
               </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Sin dimensiones en este rango</div>'}
           </div>
@@ -794,7 +802,7 @@ function renderDimensions() {
             <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--red);">✗ CRÍTICO &lt; 2.3</div>
             ${dims.filter(d=>d.avg<2.3).map(d=>`
               <div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
-                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,42))}</span>
+                <span style="color:var(--ink2);flex:1;padding-right:.5rem;line-height:1.35">${esc(sf(d.label,85))}</span>
                 <span style="font-family:'DM Serif Display',serif;color:var(--red)">${d.avg.toFixed(2)}</span>
               </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Sin dimensiones críticas ✓</div>'}
           </div>
@@ -883,7 +891,7 @@ function renderAreas() {
     data:{
       labels:areas.map(a=>a.area),
       datasets:dims.map((d,i)=>({
-        label:sf(d.label,28),
+        label:sf(d.label,50),
         data:areas.map(a=>{
           const rows=DATA.filter(r=>String(r.area||'')===a.area);
           const vals=rows.map(r=>r[d.key]).filter(v=>v!==null&&!isNaN(v)&&parseInt(v)>=1&&parseInt(v)<=4);
@@ -972,7 +980,7 @@ function renderAlerts() {
           <div class="alert-lbl">🚨 Dimensiones Críticas (&lt; 2.3) — Intervención Inmediata</div>
           ${critDims.map(d=>`
             <div class="alert-item">
-              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--red)">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(139,42,31,.12);">Requieren plan de acción inmediato con responsable asignado y fecha de seguimiento.</div>
@@ -1002,7 +1010,7 @@ function renderAlerts() {
           <div class="alert-lbl">⚠ Dimensiones en Atención (2.3–3.0)</div>
           ${warnDims.map(d=>`
             <div class="alert-item">
-              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--amber)">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(184,137,42,.15);">Implementar mejoras preventivas. Monitorear en la próxima medición.</div>
@@ -1024,7 +1032,7 @@ function renderAlerts() {
           <div class="alert-lbl">💪 Fortalezas del Equipo (≥ 3.0)</div>
           ${goodDims.slice(0,5).map(d=>`
             <div class="alert-item">
-              <div class="alert-item-name">${esc(sf(d.label,52))}</div>
+              <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--green)">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(26,92,58,.12);">Comunicar estos resultados al equipo. Son los puntos fuertes de la cultura organizacional.</div>
