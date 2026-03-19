@@ -232,22 +232,56 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
   .tb-company { font-size:.72rem; }
 }
 @media(max-width:600px) {
-  .kpi-row { grid-template-columns:1fr 1fr; }
-  .main { padding:.8rem; }
-  .grid-3 { grid-template-columns:1fr; }
-  .ph { flex-direction:column; gap:.4rem; }
-  .ph-left h2 { font-size:1.3rem; }
-  /* Topbar móvil: ocultar botones PDF/Word, mostrar solo esenciales */
-  #btnPDF, #btnWord { display:none; }
-  .tb-status { font-size:.7rem; }
-  /* KPI cards más compactos */
-  .kpi { padding:.8rem; }
-  .kpi-val { font-size:1.6rem; }
-  .kpi-lbl { font-size:.55rem; }
-  /* Sidebar como menú hamburguesa */
+  /* Layout */
   .app { grid-template-columns:1fr; }
+  .main { padding:.6rem; }
+
+  /* Topbar - solo lo esencial */
+  .topbar { padding:.5rem .7rem; gap:.3rem; flex-wrap:nowrap; }
+  .tb-title { font-size:.8rem; }
+  .tb-company { font-size:.7rem; display:block; }
+  #btnPDF, #btnWord, #btnRefresh { display:none; }
+  .tb-btn { font-size:.65rem; padding:.25rem .5rem; }
+  .tb-status { font-size:.65rem; }
+
+  /* KPIs - 2 columnas compactas */
+  .kpi-row { grid-template-columns:1fr 1fr; gap:.5rem; margin-bottom:.8rem; }
+  .kpi { padding:.7rem .8rem; }
+  .kpi-val { font-size:1.5rem; line-height:1.1; }
+  .kpi-lbl { font-size:.52rem; letter-spacing:.06em; }
+  .kpi-sub { font-size:.65rem; }
+  .kpi-trend { font-size:.65rem; }
+
+  /* Títulos de sección */
+  .ph { flex-direction:column; gap:.3rem; margin-bottom:.8rem; }
+  .ph-left h2 { font-size:1.1rem; }
+  .ph-left p { font-size:.7rem; }
+
+  /* Grids a una columna */
+  .grid-2, .grid-3 { grid-template-columns:1fr; gap:.6rem; }
+
+  /* Cards más compactas */
+  .card-body { padding:.8rem; }
+  .card-head { padding:.6rem .8rem; }
+  .card-title { font-size:.8rem; }
+
+  /* Gráficas - altura reducida */
+  canvas { max-height: 200px !important; }
+
+  /* Barras de dimensiones */
+  .dim-name { font-size:.72rem; }
+  .dim-score { font-size:.8rem; }
+
+  /* Alertas */
+  .alert-item { padding:.6rem .8rem; }
+  .alert-item-name { font-size:.78rem; }
+
   /* Tablas scroll horizontal */
-  .overflow-table { overflow-x:auto; }
+  .overflow-table, table { overflow-x:auto; display:block; font-size:.72rem; }
+
+  /* Selector de encuestas */
+  .sheet-list { grid-template-columns:1fr; }
+
   /* Comparador */
   .cmp-grid { grid-template-columns:1fr; }
 }
