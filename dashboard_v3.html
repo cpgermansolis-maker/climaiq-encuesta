@@ -1182,10 +1182,11 @@ function generarInformePDF() {
   }
 
   function paragraph(txt, indent=0, lineH=5) {
-    const lines = doc.splitTextToSize(txt, W - M*2 - indent);
+    const maxW = W - M*2 - indent;
+    const lines = doc.splitTextToSize(txt, maxW);
     checkY(lines.length * lineH + 2);
     doc.setFontSize(9); doc.setTextColor(44, 42, 40);
-    doc.text(lines, M + indent, y);
+    doc.text(lines, M + indent, y, { maxWidth: maxW });
     y += lines.length * lineH + 2;
   }
 
@@ -1194,7 +1195,7 @@ function generarInformePDF() {
     const scoreColor = score>=3?GREEN:score>=2.3?AMBER:RED;
     doc.setFontSize(8.5); doc.setTextColor(44,42,40);
     const labelLines = doc.splitTextToSize(label, W-M*2-25);
-    doc.text(labelLines, M+2, y);
+    doc.text(labelLines, M+2, y, { maxWidth: W-M*2-25 });
     doc.setFont('helvetica','bold'); doc.setTextColor(...scoreColor);
     doc.text(score.toFixed(2), W-M-2, y, {align:'right'});
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
@@ -1228,7 +1229,8 @@ function generarInformePDF() {
   doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...GOLD);
   doc.text('INFORME DE CLIMA LABORAL', M, 22);
   doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  doc.text(companyName, M, 36);
+  const companyLines = doc.splitTextToSize(companyName, W - M*2);
+  doc.text(companyLines, M, 36);
   doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,195,190);
   doc.text('Evaluación Interna bajo Marco de Control Interno COSO', M, 46);
   doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + DATA.length + '  ·  Áreas: ' + getAreas().length, M, 54);
