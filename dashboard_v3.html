@@ -1218,11 +1218,10 @@ Tono: ejecutivo, directo, sin tecnicismos. USA SIEMPRE ACENTOS Y ORTOGRAFÍA COR
     if (summary) {
       // Limpiar markdown y texto extra del modelo
       const cleanSummary = summary
-        .replace(/\*\*[^*]*\*\*/g, '')  // quitar **texto**
-        .replace(/^#+\s*/gm, '')         // quitar # headers
-        .replace(/RESUMEN EJECUTIVO:?\s*/gi, '')  // quitar título repetido
-        .replace(/^\s*[
-]/gm, '')     // quitar líneas vacías extra
+        .replace(/\*\*[^*]*\*\*/g, '')
+        .replace(/^#+\s*/gm, '')
+        .replace(/RESUMEN EJECUTIVO:?\s*/gi, '')
+        .replace(/\n{2,}/g, ' ')
         .trim();
       window._executiveSummary = cleanSummary;
     } else {
