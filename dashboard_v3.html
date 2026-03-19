@@ -1192,7 +1192,7 @@ El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo 
 4. RECOMENDACIÓN: acción concreta prioritaria
 5. FECHA DE REMEDIACIÓN PROPUESTA: plazo sugerido (en meses)
 
-Tono: ejecutivo, directo, sin tecnicismos. Redacta en español.`;
+Tono: ejecutivo, directo, sin tecnicismos. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 150 palabras en un solo párrafo corrido.`;
 
     const apiKey = localStorage.getItem('climaiq_anthropic_key') || '';
     if (!apiKey) {
@@ -1216,7 +1216,15 @@ Tono: ejecutivo, directo, sin tecnicismos. Redacta en español.`;
     const summary = data.content && data.content[0] ? data.content[0].text : null;
 
     if (summary) {
-      window._executiveSummary = summary;
+      // Limpiar markdown y texto extra del modelo
+      const cleanSummary = summary
+        .replace(/\*\*[^*]*\*\*/g, '')  // quitar **texto**
+        .replace(/^#+\s*/gm, '')         // quitar # headers
+        .replace(/RESUMEN EJECUTIVO:?\s*/gi, '')  // quitar título repetido
+        .replace(/^\s*[
+]/gm, '')     // quitar líneas vacías extra
+        .trim();
+      window._executiveSummary = cleanSummary;
     } else {
       window._executiveSummary = null;
     }
@@ -1376,7 +1384,18 @@ function generarInformePDF() {
   // ══ RESUMEN EJECUTIVO ══
   if (window._executiveSummary) {
     sectionTitle('Resumen Ejecutivo', 0);
-    paragraph(t(window._executiveSummary));
+    // Split into sentences for better page break handling
+    const execText = t(window._executiveSummary);
+    const maxW = W - M*2;
+    const execLines = doc.splitTextToSize(execText, maxW);
+    const lineH = 5;
+    // Print line by line checking page breaks
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(44, 42, 40);
+    execLines.forEach(line => {
+      checkY(lineH + 2);
+      doc.text(line, M, y, { maxWidth: maxW });
+      y += lineH;
+    });
     y += 4;
   }
 
