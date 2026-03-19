@@ -372,7 +372,7 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbwLLBomXa4OMnqpKKmEbK6Sc1o7re_5SeYOo_rjGhGHvc-suFjgVli0-mjKg_EIIpdZ/exec';
+const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbzQRQO2M7jE2EbN5cnovj-Pjpxnt2aBeXYikRjBLFElqVYB-Q9g3iNRoHT1bMBx5d-u/exec';
 
 // ── STATE ───────────────────────────────────────────────────
 let URL_GAS = '', DATA = [], QUESTIONS = [], CHARTS = {}, lastUpdate = null;
@@ -1075,13 +1075,34 @@ function wrapLabel(s, max) {
 }
 
 // ── BOOT ────────────────────────────────────────────────────
-(function boot() {
+(async function boot() {
   const saved = HARDCODED_URL || localStorage.getItem('climaiq_gas_url') || '';
   if (saved) {
     URL_GAS = saved;
     const urlInput = document.getElementById('urlInput');
     if (urlInput) urlInput.value = saved;
-    loadData();
+    // Cargar lista de hojas y seleccionar la primera no archivada
+    try {
+      const res = await fetch(URL_GAS + '?action=listSheets');
+      const json = await res.json();
+      if (json.success) {
+        AVAILABLE_SHEETS = (json.sheets || []).filter(s =>
+          !s.name.toUpperCase().includes('ARCHIVADA') &&
+          !s.name.startsWith('_labels_')
+        );
+        if (AVAILABLE_SHEETS.length > 0) {
+          // Cargar la hoja con más respuestas (la más reciente activa)
+          const best = AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
+          await loadSheet(best.name);
+        } else {
+          loadData(); // fallback
+        }
+      } else {
+        loadData();
+      }
+    } catch(e) {
+      loadData();
+    }
   }
   // Si hay URL hardcodeada, ocultar botón de configuración
   if (HARDCODED_URL) {
@@ -1661,7 +1682,7 @@ async function renderSelector() {
     const res = await fetch(URL_GAS + '?action=listSheets');
     const json = await res.json();
     if (!json.success) throw new Error(json.error);
-    AVAILABLE_SHEETS = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA'));
+    AVAILABLE_SHEETS = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA') && !s.name.startsWith('_labels_'));
 
     if (!AVAILABLE_SHEETS.length) {
       wrap.innerHTML = '<div class="banner error">No se encontraron hojas con datos.</div>'; return;
@@ -1738,7 +1759,7 @@ async function renderComparar() {
     try {
       const res = await fetch(URL_GAS + '?action=listSheets');
       const json = await res.json();
-      sheets = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA'));
+      sheets = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA') && !s.name.startsWith('_labels_'));
       AVAILABLE_SHEETS = sheets;
     } catch(e) { sheets = []; }
   }
