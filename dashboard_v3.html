@@ -1387,15 +1387,11 @@ function generarInformePDF() {
     const execText = t(window._executiveSummary);
     const maxW = W - M*2;
     const execLines = doc.splitTextToSize(execText, maxW);
-    const lineH = 5;
-    // Print line by line checking page breaks
+    const lineH = 5.5;
     doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(44, 42, 40);
-    execLines.forEach(line => {
-      checkY(lineH + 2);
-      doc.text(line, M, y, { maxWidth: maxW });
-      y += lineH;
-    });
-    y += 4;
+    checkY(execLines.length * lineH + 6);
+    doc.text(execLines, M, y, { maxWidth: maxW, lineHeightFactor: 1.4 });
+    y += execLines.length * lineH + 6;
   }
 
   // ══ KPIs ══
