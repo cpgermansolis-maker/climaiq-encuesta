@@ -320,6 +320,13 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
               <input type="url" id="urlInput" placeholder="https://script.google.com/macros/s/AKfycbxNnPykTYJc2v3UlGyBkecxgC5geHaQYwE5KfMfQxA7L1gNFihDjM2_D9NNpKuWwiIJ/exec">
               <div class="hint">La misma URL que usas en la encuesta y que termina en <code>/exec</code></div>
             </div>
+            <div class="field" style="margin-top:1rem;">
+              <label class="field-lbl">API Key de Anthropic <span style="font-size:.7rem;color:#888;">(para resumen ejecutivo con IA)</span></label>
+              <input type="password" id="anthropicKey" placeholder="sk-ant-..." 
+                style="font-family:monospace;font-size:.82rem;"
+                value="">
+              <div class="hint">Se guarda solo en tu navegador. Obtén una en <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+            </div>
             <div class="setup-btns">
               <button class="btn btn-primary" onclick="connect()">
                 <span id="connSpinner" style="display:none" class="spin"></span>
@@ -405,6 +412,9 @@ async function connect() {
   if (!url) { setupBanner('error','Pega la URL del Apps Script primero.'); return; }
   URL_GAS = url;
   localStorage.setItem('climaiq_gas_url', url);
+  // Save API key if provided
+  const apiKey = document.getElementById('anthropicKey')?.value.trim();
+  if (apiKey) localStorage.setItem('climaiq_anthropic_key', apiKey);
   document.getElementById('connSpinner').style.display = 'inline-block';
   await loadData();
   document.getElementById('connSpinner').style.display = 'none';
@@ -1081,6 +1091,10 @@ function wrapLabel(s, max) {
     URL_GAS = saved;
     const urlInput = document.getElementById('urlInput');
     if (urlInput) urlInput.value = saved;
+    // Restore API key
+    const savedKey = localStorage.getItem('climaiq_anthropic_key') || '';
+    const keyInput = document.getElementById('anthropicKey');
+    if (keyInput && savedKey) keyInput.value = savedKey;
     // Cargar lista de hojas y seleccionar la primera no archivada
     try {
       const res = await fetch(URL_GAS + '?action=listSheets');
@@ -1180,9 +1194,17 @@ El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo 
 
 Tono: ejecutivo, directo, sin tecnicismos. Redacta en español.`;
 
+    const apiKey = localStorage.getItem('climaiq_anthropic_key') || '';
+    if (!apiKey) {
+      window._executiveSummary = null;
+      btnPDF.innerHTML = originalText;
+      btnPDF.disabled = false;
+      generarInformePDF();
+      return;
+    }
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
