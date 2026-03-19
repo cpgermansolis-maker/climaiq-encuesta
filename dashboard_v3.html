@@ -275,7 +275,7 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
     </div>
     <button class="tb-btn" onclick="goTo('setup')" id="btnConfig">⚙ Configuración</button>
     <button class="tb-btn accent" id="btnRefresh" onclick="refresh()" disabled>↺ Actualizar</button>
-    <button class="tb-btn" id="btnPDF" onclick="generarInformePDF()" disabled style="background:#1A5C3A;color:#fff;border-color:#1A5C3A;">📄 Informe PDF</button>
+    <button class="tb-btn" id="btnPDF" onclick="generarPDFconResumen()" disabled style="background:#1A5C3A;color:#fff;border-color:#1A5C3A;">📄 Informe PDF</button>
     <button class="tb-btn" id="btnWord" onclick="generarInformeWord()" disabled style="background:#2B5797;color:#fff;border-color:#2B5797;">📝 Exportar Word</button>
   </div>
 </div>
@@ -1116,6 +1116,101 @@ function wrapLabel(s, max) {
 const t = s => String(s).replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/Ñ/g,'N').replace(/ñ/g,'n').replace(/ü/g,'u').replace(/—/g,'-').replace(/–/g,'-').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/…/g,'...');
 
 n// ── GENERAR INFORME PDF COSO ─────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// GENERAR RESUMEN EJECUTIVO CON IA + PDF
+// ══════════════════════════════════════════════════════════════
+async function generarPDFconResumen() {
+  if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
+
+  // Mostrar estado de carga
+  const btnPDF = document.getElementById('btnPDF');
+  const originalText = btnPDF.innerHTML;
+  btnPDF.innerHTML = '⏳ Generando resumen...';
+  btnPDF.disabled = true;
+
+  try {
+    // Calcular métricas para el prompt
+    const allVals = DATA.flatMap(d => (QUESTIONS||[]).map(q => d[q.key])).filter(v => v >= 1 && v <= 4);
+    const globalScore = allVals.length ? (allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(2) : '0';
+    const positivePct = allVals.length ? Math.round(allVals.filter(v=>v>=3).length/allVals.length*100) : 0;
+    const negativePct = 100 - positivePct;
+    const company = document.getElementById('tbCompany').textContent.replace('· ','') || 'la organización';
+    const fecha = new Date().toLocaleDateString('es-MX', {month:'long', year:'numeric'});
+
+    const areaMap = {};
+    DATA.forEach(d => {
+      const area = d.area || 'Sin área';
+      if (!areaMap[area]) areaMap[area] = [];
+      (QUESTIONS||[]).forEach(q => { const v = d[q.key]; if (v>=1&&v<=4) areaMap[area].push(v); });
+    });
+    const areaScores = Object.entries(areaMap).map(([a,vals]) => ({
+      area: a, avg: vals.length ? (vals.reduce((x,y)=>x+y,0)/vals.length).toFixed(2) : 0
+    })).sort((a,b) => a.avg - b.avg);
+    const critAreas = areaScores.filter(a => a.avg < 2.3);
+    const warnAreas = areaScores.filter(a => a.avg >= 2.3 && a.avg < 3);
+
+    const dimScores = (QUESTIONS||[]).map(q => {
+      const vals = DATA.map(d=>d[q.key]).filter(v=>v>=1&&v<=4);
+      return { label: q.label, avg: vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : 0 };
+    }).sort((a,b) => a.avg - b.avg);
+    const critDims = dimScores.filter(d => d.avg < 2.3);
+    const warnDims = dimScores.filter(d => d.avg >= 2.3 && d.avg < 3);
+
+    const propuestas = DATA.map(d => d.propuesta||'').filter(s=>s&&s.length>10).slice(0,3);
+
+    const scoreLabel = globalScore >= 3.5 ? 'Excelente' : globalScore >= 3 ? 'Bueno' : globalScore >= 2.3 ? 'Regular — requiere atención' : 'Crítico — requiere intervención inmediata';
+
+    const prompt = `Eres un auditor interno senior. Redacta un RESUMEN EJECUTIVO breve (máximo 180 palabras) para un informe de clima laboral de ${company} con fecha ${fecha}.
+
+Datos clave:
+- Score global: ${globalScore}/4.0 (${scoreLabel})
+- Respuestas positivas: ${positivePct}%  |  Negativas: ${negativePct}%
+- Participantes: ${DATA.length}
+- Áreas críticas (score < 2.3): ${critAreas.length > 0 ? critAreas.map(a=>a.area+' ('+a.avg+')').join(', ') : 'ninguna'}
+- Áreas en atención (2.3-3.0): ${warnAreas.length > 0 ? warnAreas.map(a=>a.area+' ('+a.avg+')').join(', ') : 'ninguna'}
+- Dimensiones más bajas: ${critDims.concat(warnDims).slice(0,3).map(d=>d.label.substring(0,60)+'('+d.avg+')').join(' | ')}
+${propuestas.length > 0 ? '- Comentarios del personal: ' + propuestas.join(' / ') : ''}
+
+El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo (sin bullets, sin subtítulos):
+1. OBSERVACIÓN: situación actual del clima laboral
+2. CAUSA PROBABLE: factores que originan la situación
+3. RIESGO: impacto potencial si no se atiende
+4. RECOMENDACIÓN: acción concreta prioritaria
+5. FECHA DE REMEDIACIÓN PROPUESTA: plazo sugerido (en meses)
+
+Tono: ejecutivo, directo, sin tecnicismos. Redacta en español.`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const summary = data.content && data.content[0] ? data.content[0].text : null;
+
+    if (summary) {
+      window._executiveSummary = summary;
+    } else {
+      window._executiveSummary = null;
+    }
+  } catch(err) {
+    console.warn('No se pudo generar resumen ejecutivo con IA:', err);
+    window._executiveSummary = null;
+  }
+
+  btnPDF.innerHTML = originalText;
+  btnPDF.disabled = false;
+
+  // Generar PDF con o sin resumen
+  generarInformePDF();
+}
+
+
 function generarInformePDF() {
   if (!DATA.length) { alert('No hay datos cargados.'); return; }
 
@@ -1138,6 +1233,9 @@ function generarInformePDF() {
   const goodAreas = areas.filter(a=>a.overall>=3);
   const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
   const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
+  // Obtener logo desde config del Panel Admin
+  const _cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
+  const logoData = (_cfg.identity && (_cfg.identity.logoData || _cfg.identity.logoUrl)) || null;
   const fechaHoy = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
   const totalAlerts = critDims.length + critAreas.length;
 
@@ -1233,7 +1331,15 @@ function generarInformePDF() {
   doc.text(companyLines, M, 36);
   doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,195,190);
   doc.text('Evaluación Interna bajo Marco de Control Interno COSO', M, 46);
-  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + DATA.length + '  ·  Áreas: ' + getAreas().length, M, 54);
+  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + DATA.length + '  ·  Areas: ' + getAreas().length, M, 54);
+
+  // Logo en portada (esquina superior derecha del encabezado)
+  if (logoData) {
+    try {
+      const logoFormat = logoData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(logoData, logoFormat, W - 48, 8, 30, 20, '', 'FAST');
+    } catch(e) { /* logo no disponible */ }
+  }
 
   y = 75;
 
@@ -1244,6 +1350,13 @@ function generarInformePDF() {
   doc.text('CONFIDENCIAL · Informe de Clima Laboral · ' + companyName, M, 292);
   doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
   doc.setTextColor(0,0,0);
+
+  // ══ RESUMEN EJECUTIVO ══
+  if (window._executiveSummary) {
+    sectionTitle('Resumen Ejecutivo', 0);
+    paragraph(t(window._executiveSummary));
+    y += 4;
+  }
 
   // ══ KPIs ══
   sectionTitle('1. Indicadores Clave de Desempeño', 0);
@@ -1370,10 +1483,11 @@ function generarInformePDF() {
       critAreas.length>0 ? 'Diagnóstico cualitativo en áreas críticas: ' + critAreas.map(a=>a.area).join(', ') + '.' : null,
     ].filter(Boolean)},
     { nivel: 'PRIORIDAD MEDIA', color: AMBER, items: [
-      'Implementar formatos formales de asignación de actividades con responsables, alcances y fechas.',
-      'Establecer canales de retroalimentación estructurados entre PM, Diseño y áreas de producción.',
-      'Protocolo documentado para gestión de horas extras y acuerdos laborales.',
-    ]},
+      warnAreas.length > 0 ? 'Areas en atencion (' + warnAreas.map(a=>t(a.area)).join(', ') + '): implementar plan de mejora con seguimiento mensual.' : null,
+      warnDims.length > 0 ? 'Dimensiones en atencion: reforzar practicas en ' + warnDims.slice(0,2).map(d=>t(d.label.substring(0,40))).join(' y ') + '.' : null,
+      'Establecer canales de retroalimentacion estructurados entre areas.',
+      'Documentar procesos y criterios de asignacion de actividades.',
+    ].filter(Boolean)},
     { nivel: 'MONITOREO CONTINUO', color: NAVY, items: [
       'Programar segunda medición de clima laboral en un plazo no mayor a 6 meses.',
       'Comunicar resultados y planes de mejora a todo el personal de manera transparente.',
@@ -1429,6 +1543,9 @@ async function generarInformeWord() {
   if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
 
   const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
+  // Obtener logo desde config del Panel Admin
+  const _cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
+  const logoData = (_cfg.identity && (_cfg.identity.logoData || _cfg.identity.logoUrl)) || null;
   const fechaHoy = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'2-digit' });
 
   // Calcular métricas
