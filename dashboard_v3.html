@@ -860,7 +860,7 @@ function renderDimensions() {
   const s2=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===2).length);
   const s3=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===3).length);
   const s4=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===4).length);
-  CHARTS['cStack'] = const fullLabels = dims.map(d=>d.label);
+  const fullLabels = dims.map(d=>d.label);
   new Chart(document.getElementById('cStack'),{
     type:'bar',
     data:{ labels:dims.map(d=>wrapLabel(d.label,30)),
