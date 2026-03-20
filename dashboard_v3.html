@@ -860,9 +860,10 @@ function renderDimensions() {
   const s2=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===2).length);
   const s3=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===3).length);
   const s4=dims.map(d=>DATA.filter(r=>parseInt(r[d.key])===4).length);
-  CHARTS['cStack'] = new Chart(document.getElementById('cStack'),{
+  CHARTS['cStack'] = const fullLabels = dims.map(d=>d.label);
+  new Chart(document.getElementById('cStack'),{
     type:'bar',
-    data:{ labels:dims.map(d=>wrapLabel(d.label,35)),
+    data:{ labels:dims.map(d=>wrapLabel(d.label,30)),
       datasets:[
         {label:'1 — Nunca',data:s1,backgroundColor:'rgba(139,42,31,.85)'},
         {label:'2 — Pocas veces',data:s2,backgroundColor:'rgba(138,82,16,.85)'},
@@ -873,7 +874,16 @@ function renderDimensions() {
       scales:{
         x:{stacked:true,grid:{color:'rgba(226,221,216,.5)'},ticks:{color:'#9A9490',font:{size:10}}},
         y:{stacked:true,grid:{display:false},ticks:{color:'#1C1A18',font:{size:10.5},maxTicksLimit:20}}},
-      plugins:{legend:{position:'bottom',labels:{color:'#4A4642',font:{size:11},padding:12,boxWidth:12}}}}
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#4A4642',font:{size:11},padding:12,boxWidth:12}},
+        tooltip:{callbacks:{
+          title: function(items){ return fullLabels[items[0].dataIndex] || ''; },
+          label: function(item){
+            const total = s1[item.dataIndex]+s2[item.dataIndex]+s3[item.dataIndex]+s4[item.dataIndex];
+            return item.dataset.label + ': ' + item.raw + ' de ' + total + ' personas';
+          }
+        }}
+      }}
   });
 }
 
@@ -950,7 +960,18 @@ function renderAreas() {
       scales:{
         x:{grid:{color:'rgba(226,221,216,.4)'},ticks:{color:'#1C1A18',font:{size:11}}},
         y:{min:0,max:4,grid:{color:'rgba(226,221,216,.5)'},ticks:{color:'#9A9490',font:{size:10}}}},
-      plugins:{legend:{position:'bottom',labels:{color:'#4A4642',font:{size:10},padding:10,boxWidth:12}}}}
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#4A4642',font:{size:10},padding:10,boxWidth:12}},
+        tooltip:{callbacks:{
+          label: function(item){
+            const area = areas[item.dataIndex];
+            const dim = dims[item.datasetIndex];
+            const rows = DATA.filter(r=>String(r.area||'')===area.area);
+            const vals = rows.map(r=>r[dim.key]).filter(v=>v!==null&&!isNaN(v)&&parseInt(v)>=1&&parseInt(v)<=4);
+            return item.dataset.label + ': ' + (item.raw||0).toFixed(2) + '/4.0 (' + vals.length + ' respuestas)';
+          }
+        }}
+      }}
   });
 }
 
@@ -1025,7 +1046,7 @@ function renderAlerts() {
           ${critDims.map(d=>`
             <div class="alert-item">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
-              <div class="alert-item-score" style="color:var(--red)">${d.avg.toFixed(2)}</div>
+              <div class="alert-item-score" style="color:var(--red)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(139,42,31,.12);">Requieren plan de acción inmediato con responsable asignado y fecha de seguimiento.</div>
         </div>`:`
@@ -1040,7 +1061,7 @@ function renderAlerts() {
           ${critAreas.map(a=>`
             <div class="alert-item">
               <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
-              <div class="alert-item-score" style="color:var(--red)">${a.overall}</div>
+              <div class="alert-item-score" style="color:var(--red)">${a.overall} <span style="font-size:.65rem;color:#999;">(${a.count} resp.)</span></div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(139,42,31,.12);">Reunión urgente con líderes directos. Identificar causas raíz y establecer plan de mejora.</div>
         </div>`:`
@@ -1055,7 +1076,7 @@ function renderAlerts() {
           ${warnDims.map(d=>`
             <div class="alert-item">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
-              <div class="alert-item-score" style="color:var(--amber)">${d.avg.toFixed(2)}</div>
+              <div class="alert-item-score" style="color:var(--amber)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(184,137,42,.15);">Implementar mejoras preventivas. Monitorear en la próxima medición.</div>
         </div>`:''}
@@ -1066,7 +1087,7 @@ function renderAlerts() {
           ${warnAreas.map(a=>`
             <div class="alert-item">
               <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
-              <div class="alert-item-score" style="color:var(--amber)">${a.overall}</div>
+              <div class="alert-item-score" style="color:var(--amber)">${a.overall} <span style="font-size:.65rem;color:#999;">(${a.count} resp.)</span></div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(184,137,42,.15);">Seguimiento periódico con los líderes de estas áreas.</div>
         </div>`:''}
@@ -1077,7 +1098,7 @@ function renderAlerts() {
           ${goodDims.slice(0,5).map(d=>`
             <div class="alert-item">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
-              <div class="alert-item-score" style="color:var(--green)">${d.avg.toFixed(2)}</div>
+              <div class="alert-item-score" style="color:var(--green)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
           <div class="alert-txt" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid rgba(26,92,58,.12);">Comunicar estos resultados al equipo. Son los puntos fuertes de la cultura organizacional.</div>
         </div>`:''}
