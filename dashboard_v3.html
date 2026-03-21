@@ -1023,6 +1023,7 @@ function renderAlerts() {
           </div>
           <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
             <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${totalAlerts===0?'var(--green)':'var(--red)'}">${totalAlerts}</div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--ink3);">${critDims.length} dim. + ${critAreas.length} áreas</div>
             <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Alertas Críticas Activas</div>
             <div style="font-size:.8rem;font-weight:600;color:${totalAlerts===0?'var(--green)':'var(--red)'};margin-top:.3rem;">${totalAlerts===0?'Sin alertas críticas':'Requieren acción inmediata'}</div>
           </div>
