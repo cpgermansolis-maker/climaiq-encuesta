@@ -724,7 +724,7 @@ function renderOverview() {
                   <div style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:var(--ink2);">
                     <div style="width:8px;height:8px;background:${c};border-radius:1px;flex-shrink:0;"></div>
                     ${i+1} — ${['Nunca','Pocas veces','Frecuentemente','Siempre'][i]}
-                    <span style="color:var(--ink3)">(${total>0?Math.round(dist[i]/total*100):0}%)</span>
+                    <span style="color:var(--ink3)">${dist[i]} de ${total} resp. (${total>0?Math.round(dist[i]/total*100):0}%)</span>
                   </div>`).join('')}
               </div>
             </div>
@@ -1018,6 +1018,7 @@ function renderAlerts() {
           </div>
           <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
             <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${positivePct>=60?'var(--green)':'var(--red)'}">${positivePct}%</div>
+            <div style="font-size:.75rem;color:var(--ink3);">${allScores.filter(v=>v>=3).length} de ${total} resp.</div>
             <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Respuestas Positivas (3+4)</div>
             <div style="font-size:.8rem;font-weight:600;color:${positivePct>=60?'var(--green)':'var(--red)'};margin-top:.3rem;">${positivePct>=75?'Muy positivo':positivePct>=60?'Positivo':positivePct>=45?'Mixto':'Preocupante'}</div>
           </div>
