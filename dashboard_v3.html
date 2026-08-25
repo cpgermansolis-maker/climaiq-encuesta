@@ -361,6 +361,11 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
                 value="">
               <div class="hint">Se guarda solo en tu navegador. Obtén una en <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
             </div>
+            <div class="field" style="margin-top:1rem;">
+              <label class="field-lbl">Plantilla de la empresa <span style="font-size:.7rem;color:#888;">(opcional)</span></label>
+              <input type="number" id="plantilla" min="1" step="1" placeholder="Ej. 24">
+              <div class="hint">Cuántas personas fueron invitadas a contestar. Con este dato el informe reporta la tasa de participación en vez de solo el número de respuestas.</div>
+            </div>
             <div class="setup-btns">
               <button class="btn btn-primary" onclick="connect()">
                 <span id="connSpinner" style="display:none" class="spin"></span>
@@ -428,6 +433,7 @@ function goTo(name) {
   if (nav) nav.classList.add('active');
   if (name === 'selector') renderSelector();
   if (name === 'comparar') renderComparar();
+  if (name === 'setup') pintarPlantilla();
 }
 
 // ── STATUS ──────────────────────────────────────────────────
@@ -449,11 +455,23 @@ async function connect() {
   // Save API key if provided
   const apiKey = document.getElementById('anthropicKey')?.value.trim();
   if (apiKey) localStorage.setItem('climaiq_anthropic_key', apiKey);
+  const plantilla = parseInt(document.getElementById('plantilla')?.value || '', 10);
+  if (plantilla > 0) localStorage.setItem(clavePlantilla(), String(plantilla));
+  else localStorage.removeItem(clavePlantilla());
   const spin = document.getElementById('connSpinner');
   if (spin) spin.style.display = 'inline-block';
   await loadData();
   if (spin) spin.style.display = 'none';
-  if (apiKey) setupBanner('success', '✓ Llave guardada en este navegador. El informe en PDF ya incluirá el resumen ejecutivo.');
+  const guardado = [];
+  if (apiKey) guardado.push('la llave');
+  if (plantilla > 0) guardado.push('la plantilla de ' + plantilla + ' personas' + (CURRENT_SHEET ? ' para ' + CURRENT_SHEET : ''));
+  if (guardado.length) setupBanner('success', '✓ Se guardó ' + guardado.join(' y ') + ' en este navegador.');
+}
+
+// Deja el campo de plantilla mostrando lo guardado para la encuesta activa
+function pintarPlantilla() {
+  const el = document.getElementById('plantilla');
+  if (el) el.value = getPlantilla() || '';
 }
 
 async function testConn() {
@@ -589,6 +607,14 @@ function r2(n) { return n===null?null:Math.round(n*100)/100; }
 function pillClass(s) { return s>=3?'pill-hi':s>=2.3?'pill-md':'pill-lo'; }
 function barColor(s) { return s>=3?'#1A5C3A':s>=2.3?'#8A5210':'#8B2A1F'; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function participantes(n) { return n === 1 ? '1 participante' : n + ' participantes'; }
+// Plantilla de la empresa, capturada en Configuración. Se guarda por encuesta
+// porque cada empresa tiene su propio número de empleados.
+function clavePlantilla(hoja) { return 'climaiq_plantilla_' + (hoja || CURRENT_SHEET || 'default'); }
+function getPlantilla(hoja) {
+  const v = parseInt(localStorage.getItem(clavePlantilla(hoja)) || '', 10);
+  return v > 0 ? v : null;
+}
 function sf(v,max) { const s=String(v||''); return s.length>max?s.substring(0,max)+'…':s; }
 function ts() { return lastUpdate?lastUpdate.toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—'; }
 function destroyC(id) { if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];} }
@@ -1208,8 +1234,12 @@ function wrapLabel(s, max) {
 })();
 
 
-// ── Normalizar acentos para jsPDF ──
-const t = s => String(s).replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/Ñ/g,'N').replace(/ñ/g,'n').replace(/ü/g,'u').replace(/—/g,'-').replace(/–/g,'-').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/…/g,'...');
+// ── Sustituir en el PDF solo lo que la fuente no puede dibujar ──
+// Antes esto tambien quitaba los acentos, y por eso el informe mezclaba
+// "DIAGNÓSTICO" (texto fijo, con acento) con "Observacion" y "capacitacion"
+// (texto dinamico, sin acento). Las fuentes estandar de jsPDF si dibujan
+// acentos y enes; lo unico fuera de su alcance son simbolos como ≥ y →.
+const t = s => String(s).replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'->').replace(/[▲▼✓✔✕✗]/g,'').replace(/ /g,' ');
 
 // ── GENERAR INFORME PDF COSO ─────────────────────────────────
 // ══════════════════════════════════════════════════════════════
@@ -1254,7 +1284,12 @@ async function generarPDFconResumen() {
     const critDims = dimScores.filter(d => d.avg < 2.3);
     const warnDims = dimScores.filter(d => d.avg >= 2.3 && d.avg < 3);
 
-    const propuestas = DATA.map(d => d.propuesta||'').filter(s=>s&&s.length>10).slice(0,3);
+    // El resumen se redactaba viendo solo 3 propuestas y ninguna observación.
+    // Las observaciones suelen traer lo más delicado (hostigamiento, funciones
+    // duplicadas), así que se mandan todas y separadas por origen.
+    const _limpio = s => s && s.length > 10 && s.toLowerCase().trim() !== 'na';
+    const propuestas = DATA.map(d => d.propuesta||'').filter(_limpio);
+    const observaciones = DATA.map(d => d.observaciones||'').filter(_limpio);
 
     const scoreLabel = globalScore >= 3.5 ? 'Excelente' : globalScore >= 3 ? 'Bueno' : globalScore >= 2.3 ? 'Regular — requiere atención' : 'Crítico — requiere intervención inmediata';
 
@@ -1266,8 +1301,9 @@ Datos clave:
 - Participantes: ${DATA.length}
 - Áreas críticas (score < 2.3): ${critAreas.length > 0 ? critAreas.map(a=>a.area+' ('+a.avg+')').join(', ') : 'ninguna'}
 - Áreas en atención (2.3-3.0): ${warnAreas.length > 0 ? warnAreas.map(a=>a.area+' ('+a.avg+')').join(', ') : 'ninguna'}
-- Dimensiones más bajas: ${critDims.concat(warnDims).slice(0,3).map(d=>d.label.substring(0,60)+'('+d.avg+')').join(' | ')}
-${propuestas.length > 0 ? '- Comentarios del personal: ' + propuestas.join(' / ') : ''}
+- Dimensiones más bajas: ${critDims.concat(warnDims).slice(0,3).map(d=>d.label+' ('+d.avg+')').join(' | ')}
+${propuestas.length > 0 ? '\nPropuestas de mejora escritas por el personal:\n' + propuestas.map((p,i)=>(i+1)+'. '+p).join('\n') : ''}
+${observaciones.length > 0 ? '\nObservaciones escritas por el personal:\n' + observaciones.map((o,i)=>(i+1)+'. '+o).join('\n') : ''}
 
 El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo (sin bullets, sin subtítulos):
 1. OBSERVACIÓN: situación actual del clima laboral
@@ -1378,16 +1414,24 @@ function generarInformePDF() {
   const critDims = dims.filter(d=>d.avg!==null&&d.avg<2.3).sort((a,b)=>a.avg-b.avg);
   const warnDims = dims.filter(d=>d.avg!==null&&d.avg>=2.3&&d.avg<3).sort((a,b)=>a.avg-b.avg);
   const goodDims = dims.filter(d=>d.avg!==null&&d.avg>=3).sort((a,b)=>b.avg-a.avg);
-  const critAreas = areas.filter(a=>a.overall<2.3);
-  const warnAreas = areas.filter(a=>a.overall>=2.3&&a.overall<3);
-  const goodAreas = areas.filter(a=>a.overall>=3);
+  // Confidencialidad: un área con una o dos respuestas señala a quien contestó.
+  // Esas áreas siguen contando en el score global y en los resultados por
+  // dimensión, pero no se desglosan por nombre en el informe.
+  const MIN_ANONIMATO = 3;
+  const areasPublicables = areas.filter(a => a.count >= MIN_ANONIMATO);
+  const areasReservadas  = areas.filter(a => a.count <  MIN_ANONIMATO);
+  const critAreasTodas = areas.filter(a=>a.overall<2.3);
+  const critAreas = areasPublicables.filter(a=>a.overall<2.3);
+  const warnAreas = areasPublicables.filter(a=>a.overall>=2.3&&a.overall<3);
+  const goodAreas = areasPublicables.filter(a=>a.overall>=3);
   const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
   const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
   // Obtener logo desde config del Panel Admin
   const _cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
   const logoData = (_cfg.identity && (_cfg.identity.logoData || _cfg.identity.logoUrl)) || null;
   const fechaHoy = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
-  const totalAlerts = critDims.length + critAreas.length;
+  // El conteo de alertas usa TODAS las áreas: reservar el nombre no borra el riesgo
+  const totalAlerts = critDims.length + critAreasTodas.length;
 
   // Colors
   const NAVY  = [26, 47, 74];
@@ -1494,7 +1538,11 @@ function generarInformePDF() {
   doc.text(companyLines, M, 36);
   doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,195,190);
   doc.text('Evaluación Interna bajo Marco de Control Interno COSO', M, 46);
-  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + DATA.length + '  ·  Areas: ' + getAreas().length, M, 54);
+  const _plantilla = getPlantilla();
+  const _participacion = _plantilla
+    ? DATA.length + ' de ' + _plantilla + ' (' + Math.round(DATA.length / _plantilla * 100) + '% de participación)'
+    : String(DATA.length);
+  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + _participacion + '  ·  Áreas: ' + getAreas().length, M, 54);
 
   // Logo en portada (esquina superior derecha del encabezado)
   if (logoData) {
@@ -1574,23 +1622,41 @@ function generarInformePDF() {
   if (critAreas.length > 0) {
     checkY(6);
     doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
-    doc.text(t('AREAS CRITICAS (score < 2.3) - Intervencion Inmediata:'), M, y); y += 5;
+    doc.text(t('ÁREAS CRÍTICAS (score < 2.3) - Intervención Inmediata:'), M, y); y += 5;
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    critAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+    critAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
   }
   if (warnAreas.length > 0) {
     checkY(6);
     doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...AMBER);
-    doc.text(t('AREAS EN ATENCION (2.3-3.0) - Seguimiento:'), M, y); y += 5;
+    doc.text(t('ÁREAS EN ATENCIÓN (2.3-3.0) - Seguimiento:'), M, y); y += 5;
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    warnAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+    warnAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
   }
   if (goodAreas.length > 0) {
     checkY(6);
     doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
-    doc.text(t('AREAS SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
+    doc.text(t('ÁREAS SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    goodAreas.forEach(a => scoreRow(t(a.area) + '  (' + a.count + ' participantes)', a.overall));
+    goodAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
+  }
+  if (areasReservadas.length > 0) {
+    y += 2;
+    const nota = 'Nota de confidencialidad: ' + areasReservadas.length +
+      (areasReservadas.length === 1 ? ' área no se desglosa' : ' áreas no se desglosan') +
+      ' por tener menos de ' + MIN_ANONIMATO + ' respuestas, ya que el resultado identificaría a quien contestó. ' +
+      'Sus respuestas sí están incluidas en el score global y en los resultados por dimensión.';
+    const estiloNota = function() {
+      doc.setFontSize(7.5); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    };
+    estiloNota();
+    doc.splitTextToSize(t(nota), W - M*2).forEach(function(linea) {
+      if (y + 4 > 275) { newPage(); estiloNota(); }
+      doc.text(linea, M, y);
+      y += 4;
+    });
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += 2;
   }
 
   // ══ ACTIVIDADES DE CONTROL ══
@@ -1624,28 +1690,49 @@ function generarInformePDF() {
   // Hallazgos dinámicos desde respuestas abiertas
   const _propuestas = DATA.map(d => d.propuesta || d['Propuestas de mejora'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
   const _observaciones = DATA.map(d => d.observaciones || d['Observaciones'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
-  const _comentarios = [..._propuestas, ..._observaciones].slice(0, 5);
-  let hallazgos;
-  if (_comentarios.length > 0) {
-    hallazgos = _comentarios.map(c => t(c.length > 220 ? c.substring(0,220)+'...' : c));
+  // Antes esto se quedaba con los primeros 5 comentarios y cortaba cada uno a
+  // 220 caracteres, sin decirlo. Como las propuestas van primero, las
+  // observaciones nunca alcanzaban a salir: se perdía la evidencia más fuerte.
+  // Ahora van completos y separados por origen.
+  const grupos = [
+    { titulo: 'Propuestas de mejora del personal', textos: _propuestas },
+    { titulo: 'Observaciones del personal',        textos: _observaciones }
+  ].filter(g => g.textos.length > 0);
+
+  function vinieta(numero, texto) {
+    const estilo = function() { doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40); };
+    const lines = (function() { estilo(); return doc.splitTextToSize(t(texto), W - M*2 - 8); })();
+    if (y + 9 > 275) { newPage(); }
+    doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.text(numero + '.', M, y);
+    estilo();
+    lines.forEach(function(linea) {
+      if (y + 4.8 > 275) { newPage(); estilo(); }
+      doc.text(linea, M + 8, y);
+      y += 4.8;
+    });
+    y += 3;
+  }
+
+  if (grupos.length > 0) {
+    grupos.forEach(function(g) {
+      checkY(10);
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+      doc.text(t(g.titulo + ' (' + g.textos.length + ')'), M, y); y += 5;
+      doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+      g.textos.forEach(function(txt, i) { vinieta(i + 1, txt); });
+      y += 2;
+    });
   } else {
-    hallazgos = [];
-    if (critAreas.length > 0) hallazgos.push(t('Areas criticas: ' + critAreas.map(a=>a.area).join(', ') + ' requieren intervencion inmediata.'));
-    if (critDims.length > 0) hallazgos.push(t('Dimensiones criticas: ' + critDims.slice(0,2).map(d=>d.label.substring(0,60)).join(' / ')));
+    const hallazgos = [];
+    if (critAreasTodas.length > 0) hallazgos.push('Se detectaron ' + critAreasTodas.length + ' área(s) con score crítico que requieren intervención inmediata.');
+    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label).join(' / '));
     const _allV = DATA.flatMap(d => (QUESTIONS||[]).map(q=>d[q.key])).filter(v=>v>=1&&v<=4);
     const _negPct = _allV.length > 0 ? Math.round(_allV.filter(v=>v<=2).length/_allV.length*100) : 0;
-    if (_negPct >= 40) hallazgos.push('El ' + _negPct + '% de respuestas negativas indica areas de mejora urgente.');
-    if (hallazgos.length === 0) hallazgos.push('Score global ' + global.toFixed(2) + '/4.0. Complementar con entrevistas cualitativas.');
+    if (_negPct >= 40) hallazgos.push('El ' + _negPct + '% de respuestas negativas indica áreas de mejora urgente.');
+    if (hallazgos.length === 0) hallazgos.push('No se recibieron comentarios abiertos. Score global ' + global.toFixed(2) + '/4.0. Se recomienda complementar con entrevistas cualitativas.');
+    hallazgos.forEach(function(h, i) { vinieta(i + 1, h); });
   }
-  hallazgos.forEach((h, i) => {
-    checkY(12);
-    doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-    doc.text((i+1) + '.', M, y);
-    doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40);
-    const lines = doc.splitTextToSize(h, W - M*2 - 6);
-    doc.text(lines, M+6, y);
-    y += lines.length * 4.8 + 3;
-  });
 
   // ══ CONCLUSIÓN ══
   sectionTitle('6. Conclusión y Recomendaciones — Monitoreo COSO');
@@ -1661,10 +1748,13 @@ function generarInformePDF() {
       critAreas.length>0 ? 'Diagnóstico cualitativo en áreas críticas: ' + critAreas.map(a=>a.area).join(', ') + '.' : null,
     ].filter(Boolean)},
     { nivel: 'PRIORIDAD MEDIA', color: AMBER, items: [
-      warnAreas.length > 0 ? 'Areas en atencion (' + warnAreas.map(a=>t(a.area)).join(', ') + '): implementar plan de mejora con seguimiento mensual.' : null,
-      warnDims.length > 0 ? 'Dimensiones en atencion: reforzar practicas en ' + warnDims.slice(0,2).map(d=>t(d.label.substring(0,40))).join(' y ') + '.' : null,
-      'Establecer canales de retroalimentacion estructurados entre areas.',
-      'Documentar procesos y criterios de asignacion de actividades.',
+      warnAreas.length > 0 ? 'Áreas en atención (' + warnAreas.map(a=>t(a.area)).join(', ') + '): implementar plan de mejora con seguimiento mensual.' : null,
+      // Antes esto cortaba la pregunta a 40 caracteres y quedaba a media frase,
+      // arrastrando el signo de apertura. Ahora va una recomendación por dimensión
+      // con el texto completo.
+      ...warnDims.map(d => 'Reforzar la dimensión en atención: ' + t(d.label) + ' (' + d.avg.toFixed(2) + ').'),
+      'Establecer canales de retroalimentación estructurados entre áreas.',
+      'Documentar procesos y criterios de asignación de actividades.',
     ].filter(Boolean)},
     { nivel: 'MONITOREO CONTINUO', color: NAVY, items: [
       'Programar segunda medición de clima laboral en un plazo no mayor a 6 meses.',
@@ -1682,13 +1772,19 @@ function generarInformePDF() {
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
     y += 8;
     p.items.forEach(item => {
-      checkY(10);
-      doc.setFontSize(8.5); doc.setTextColor(...NAVY);
-      doc.text('•', M+2, y);
+      const estilo = function() { doc.setFontSize(8.5); doc.setFont('helvetica','normal'); };
+      estilo();
       const lines = doc.splitTextToSize(item, W-M*2-8);
+      if (y + 9 > 275) { newPage(); estilo(); }
+      doc.setTextColor(...NAVY);
+      doc.text('•', M+2, y);
       doc.setTextColor(44,42,40);
-      doc.text(lines, M+7, y);
-      y += lines.length * 4.8 + 2;
+      lines.forEach(function(linea) {
+        if (y + 4.8 > 275) { newPage(); estilo(); doc.setTextColor(44,42,40); }
+        doc.text(linea, M+7, y);
+        y += 4.8;
+      });
+      y += 2;
     });
     y += 3;
   });
@@ -1699,7 +1795,8 @@ function generarInformePDF() {
   doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
   doc.line(M, y, W-M, y); y += 8;
   doc.setFontSize(7.5); doc.setTextColor(...GRAY);
-  doc.text('Elaborado con base en ' + DATA.length + ' respuestas cuantitativas de ' + getAreas().length + ' áreas · Sistema ClimaIQ · ' + fechaHoy, W/2, y, {align:'center'});
+  doc.text('Elaborado con base en ' + DATA.length + ' respuestas cuantitativas de ' + getAreas().length + ' áreas' +
+    (_plantilla ? ' sobre una plantilla de ' + _plantilla + ' personas' : '') + ' · Sistema ClimaIQ · ' + fechaHoy, W/2, y, {align:'center'});
   y += 4;
   doc.text('Metodología: Marco de Control Interno COSO · Escala de evaluación: 1 (Nunca) a 4 (Siempre)', W/2, y, {align:'center'});
   y += 4;
@@ -1733,25 +1830,29 @@ async function generarInformeWord() {
   const POS_PCT = Math.round(DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 3).length / DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1).length * 100);
   const NEG_PCT = 100 - POS_PCT;
   const areaData  = getAreaData();
-  const critAreas = areaData.filter(a => a.overall < 2.3);
-  const warnAreas = areaData.filter(a => a.overall >= 2.3 && a.overall < 3);
-  const goodAreas = areaData.filter(a => a.overall >= 3);
+  // Mismo criterio de confidencialidad que el PDF: no se desglosa por nombre
+  // un área con menos de 3 respuestas, porque señalaría a quien contestó.
+  const MIN_ANONIMATO = 3;
+  const areasPublicables = areaData.filter(a => a.count >= MIN_ANONIMATO);
+  const areasReservadas  = areaData.filter(a => a.count <  MIN_ANONIMATO);
+  const critAreasTodas = areaData.filter(a => a.overall < 2.3);
+  const critAreas = areasPublicables.filter(a => a.overall < 2.3);
+  const warnAreas = areasPublicables.filter(a => a.overall >= 2.3 && a.overall < 3);
+  const goodAreas = areasPublicables.filter(a => a.overall >= 3);
   const critDims  = dims.filter(d => d.avg < 2.3);
   const warnDims  = dims.filter(d => d.avg >= 2.3 && d.avg < 3);
   const goodDims  = dims.filter(d => d.avg >= 3);
   const scoreLabel = GLOBAL >= 3.5 ? 'Excelente' : GLOBAL >= 3 ? 'Bueno' : GLOBAL >= 2.3 ? 'Regular' : 'Crítico';
-  const totalAlerts = critDims.length + critAreas.length;
+  const totalAlerts = critDims.length + critAreasTodas.length;
+  const plantillaW = getPlantilla();
 
-  // Hallazgos dinámicos
-  const propuestas = DATA.map(d => d.propuesta||'').filter(t => t && t.length > 10 && t.toLowerCase() !== 'na');
-  const observaciones = DATA.map(d => d.observaciones||'').filter(t => t && t.length > 10 && t.toLowerCase() !== 'na');
-  const comentarios = [...propuestas, ...observaciones].slice(0, 6);
+  // Hallazgos: completos y separados por origen, sin tope ni recorte
+  const propuestas = DATA.map(d => d.propuesta||'').filter(t => t && t.length > 10 && t.toLowerCase().trim() !== 'na');
+  const observaciones = DATA.map(d => d.observaciones||'').filter(t => t && t.length > 10 && t.toLowerCase().trim() !== 'na');
   let hallazgos = [];
-  if (comentarios.length > 0) {
-    hallazgos = comentarios.map(c => c.length > 250 ? c.substring(0,250)+'...' : c);
-  } else {
-    if (critAreas.length > 0) hallazgos.push('Áreas con score crítico (' + critAreas.map(a=>a.area).join(', ') + '): requieren intervención inmediata.');
-    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label.substring(0,80)+'...').join(' / '));
+  if (propuestas.length + observaciones.length === 0) {
+    if (critAreasTodas.length > 0) hallazgos.push('Se detectaron ' + critAreasTodas.length + ' área(s) con score crítico: requieren intervención inmediata.');
+    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label).join(' / '));
     if (NEG_PCT >= 40) hallazgos.push('El ' + NEG_PCT + '% de respuestas en niveles negativos (1-2) indica áreas de mejora urgente.');
     if (hallazgos.length === 0) hallazgos.push('Score global: ' + GLOBAL.toFixed(2) + '/4.0. Se recomienda complementar con encuestas cualitativas.');
   }
@@ -1773,7 +1874,8 @@ async function generarInformeWord() {
     GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
     critAreas, warnAreas, goodAreas,
     critDims, warnDims, goodDims,
-    hallazgos, diagnostico, conclusion
+    hallazgos, diagnostico, conclusion,
+    propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla: plantillaW
   });
 
   const blob = new Blob([rtf], { type: 'application/msword' });
@@ -1786,7 +1888,8 @@ async function generarInformeWord() {
 }
 
 function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
-  critAreas, warnAreas, goodAreas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion }) {
+  critAreas, warnAreas, goodAreas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion,
+  propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla }) {
 
   const sc = v => v >= 3 ? '1A5C3A' : v >= 2.3 ? '8A5210' : '8B2A1F';
   const lv = v => v >= 3 ? 'Satisfactorio' : v >= 2.3 ? 'Atención' : 'Crítico';
@@ -1857,7 +1960,7 @@ function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT,
   <p style="font-size:8pt; color:#B8892A; font-weight:bold; text-transform:uppercase; letter-spacing:2px; margin:0 0 6pt 0; text-align:left;">Informe de Clima Laboral</p>
   <h1 style="color:white; margin:0 0 8pt 0; font-size:26pt;">${company}</h1>
   <p style="color:#C8C3BE; margin:0 0 4pt 0; text-align:left;">Evaluación Interna bajo Marco de Control Interno COSO</p>
-  <p style="color:#C8C3BE; font-size:9pt; margin:0; text-align:left;">Fecha: ${fecha} · Participantes: ${total} · Áreas: ${totalAreas}</p>
+  <p style="color:#C8C3BE; font-size:9pt; margin:0; text-align:left;">Fecha: ${fecha} · Participantes: ${plantilla ? total + ' de ' + plantilla + ' (' + Math.round(total/plantilla*100) + '% de participación)' : total} · Áreas: ${totalAreas}</p>
 </div>
 
 <p><span class="confidencial">CONFIDENCIAL</span> — Uso exclusivo de Dirección General</p>
@@ -1896,6 +1999,7 @@ ${[...critAreas,...warnAreas,...goodAreas].map(a=>`
 ${critAreas.length>0?`<p><span class="critico">Áreas críticas (score &lt; 2.3) — Intervención inmediata:</span> ${critAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
 ${warnAreas.length>0?`<p><span class="atencion">Áreas en atención (2.3–3.0):</span> ${warnAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
 ${goodAreas.length>0?`<p><span class="satisfactorio">Áreas satisfactorias (≥ 3.0):</span> ${goodAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${areasReservadas.length>0?`<p style="font-size:9pt;color:#6B6560;font-style:italic;">Nota de confidencialidad: ${areasReservadas.length===1?'1 área no se desglosa':areasReservadas.length+' áreas no se desglosan'} por tener menos de ${MIN_ANONIMATO} respuestas, ya que el resultado identificaría a quien contestó. Sus respuestas sí están incluidas en el score global y en los resultados por dimensión.</p>`:''}
 
 <!-- SECCIÓN 4: DIMENSIONES -->
 <h2>4. Actividades de Control — Resultados por Dimensión</h2>
@@ -1905,10 +2009,14 @@ ${goodDims.length>0?`<p><span class="satisfactorio">Dimensiones satisfactorias (
 
 <!-- SECCIÓN 5: HALLAZGOS -->
 <h2>5. Información y Comunicación — Hallazgos Cualitativos</h2>
-<p>${hallazgos.length > 0 && DATA.filter(d=>(d.propuesta||'').length>10).length > 0 
-  ? 'El análisis de las respuestas abiertas de los colaboradores revela los siguientes hallazgos:'
-  : 'El análisis cuantitativo revela los siguientes hallazgos principales:'}</p>
+${(propuestas.length + observaciones.length) > 0 ? `
+<p>Se transcriben íntegras las ${propuestas.length + observaciones.length} respuestas abiertas recibidas, sin resumir ni recortar.</p>
+${propuestas.length>0?`<p><strong>Propuestas de mejora del personal (${propuestas.length})</strong></p><ol>${propuestas.map(p=>`<li><p>${p}</p></li>`).join('')}</ol>`:''}
+${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones.length})</strong></p><ol>${observaciones.map(o=>`<li><p>${o}</p></li>`).join('')}</ol>`:''}
+` : `
+<p>No se recibieron comentarios abiertos. El análisis cuantitativo revela los siguientes hallazgos principales:</p>
 <ol>${hallazgos.map(h=>`<li><p>${h}</p></li>`).join('')}</ol>
+`}
 
 <!-- SECCIÓN 6: CONCLUSIÓN -->
 <h2>6. Conclusión y Recomendaciones — Monitoreo COSO</h2>
