@@ -2290,10 +2290,10 @@ async function generarInformeWord() {
   // Construir contenido del documento como HTML para convertir a DOCX via Blob
   // Usamos un formato RTF simple que Word puede abrir directamente
   const rtf = buildRTF({
-    company: companyName, fecha: fechaHoy,
+    company: companyName, fecha: fechaHoy, logo: logoData,
     total: DATA.length, totalAreas: areas.length,
     GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
-    critAreas, warnAreas, goodAreas,
+    critAreas, warnAreas, goodAreas, critAreasTodas,
     critDims, warnDims, goodDims,
     hallazgos, diagnostico, conclusion,
     propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla: plantillaW
@@ -2303,17 +2303,21 @@ async function generarInformeWord() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Informe_Clima_${companyName.replace(/\\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.doc`;
+  a.download = `Informe_Clima_${companyName.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.doc`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
-  critAreas, warnAreas, goodAreas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion,
+function buildRTF({ company, fecha, logo, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
+  critAreas, warnAreas, goodAreas, critAreasTodas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion,
   propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla }) {
 
   const sc = v => v >= 3 ? '1A5C3A' : v >= 2.3 ? '8A5210' : '8B2A1F';
   const lv = v => v >= 3 ? 'Satisfactorio' : v >= 2.3 ? 'Atención' : 'Crítico';
+  // Todo lo que escribió el personal se escapa antes de entrar al HTML: un
+  // comentario con "<" se lo traga Word y el informe pierde texto sin avisar.
+  // Los saltos de línea se conservan, porque hay respuestas de varios párrafos.
+  const tx = s => esc(s).replace(/\r?\n/g, '<br>');
 
   // Build HTML that Word can open as editable document
   let html = `
@@ -2347,39 +2351,15 @@ function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT,
   li { margin: 4pt 0; text-align: justify; }
   .confidencial { color: #8B2A1F; font-weight: bold; }
   .firma-linea { border-top: 1px solid #9A9490; margin-top: 30pt; padding-top: 4pt; width: 45%; display: inline-block; }
-
-/* ── SELECTOR & COMPARADOR ── */
-.sheet-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.8rem; margin-top:1rem; }
-.sheet-card { background:var(--surface); border:1px solid var(--border); padding:1.2rem 1.4rem; cursor:pointer; transition:all .15s; position:relative; }
-.sheet-card:hover { border-color:var(--navy); box-shadow:0 2px 12px rgba(11,31,58,.1); }
-.sheet-card.active-sheet { border-color:var(--green); border-width:2px; }
-.sheet-card .sc-name { font-weight:600; font-size:.95rem; color:var(--navy); margin-bottom:.3rem; }
-.sheet-card .sc-rows { font-size:.75rem; color:var(--ink3); }
-.sheet-card .sc-badge { position:absolute; top:.7rem; right:.8rem; font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:.2rem .5rem; border-radius:2px; }
-.sc-badge.current { background:var(--green-bg); color:var(--green); }
-.cmp-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1rem; }
-.cmp-select { background:var(--surface); border:1px solid var(--border); padding:1.2rem; }
-.cmp-select label { font-size:.65rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); display:block; margin-bottom:.5rem; }
-.cmp-select select { width:100%; padding:.5rem .7rem; border:1px solid var(--border); background:var(--bg); font-family:inherit; font-size:.85rem; }
-.cmp-btn { margin-top:1rem; }
-.cmp-results { margin-top:1.5rem; }
-.cmp-metric { display:flex; align-items:center; gap:1rem; padding:.8rem 1rem; border-bottom:1px solid var(--border); }
-.cmp-metric:last-child { border-bottom:none; }
-.cmp-label { flex:1; font-size:.82rem; color:var(--ink2); }
-.cmp-val { font-weight:700; font-size:1rem; min-width:50px; text-align:center; }
-.cmp-arrow { font-size:1.1rem; }
-.cmp-arrow.up { color:var(--green); }
-.cmp-arrow.dn { color:var(--red); }
-.cmp-arrow.eq { color:var(--ink3); }
-@media(max-width:600px){ .cmp-grid{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 
 <!-- PORTADA -->
 <div style="background:#1A2F4A; padding:30pt; margin:-2cm -2cm 20pt -2cm; color:white;">
+  ${logo ? `<img src="${logo}" style="height:52pt;margin-bottom:10pt;" alt="">` : ''}
   <p style="font-size:8pt; color:#B8892A; font-weight:bold; text-transform:uppercase; letter-spacing:2px; margin:0 0 6pt 0; text-align:left;">Informe de Clima Laboral</p>
-  <h1 style="color:white; margin:0 0 8pt 0; font-size:26pt;">${company}</h1>
+  <h1 style="color:white; margin:0 0 8pt 0; font-size:26pt;">${tx(company)}</h1>
   <p style="color:#C8C3BE; margin:0 0 4pt 0; text-align:left;">Evaluación Interna bajo Marco de Control Interno COSO</p>
   <p style="color:#C8C3BE; font-size:9pt; margin:0; text-align:left;">Fecha: ${fecha} · Participantes: ${plantilla ? total + ' de ' + plantilla + ' (' + Math.round(total/plantilla*100) + '% de participación)' : total} · Áreas: ${totalAreas}</p>
 </div>
@@ -2393,7 +2373,7 @@ function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT,
   <td><div class="kpi-label">Score Global</div><div class="kpi-value" style="color:#${sc(GLOBAL)}">${GLOBAL.toFixed(2)}</div><div style="font-size:8pt;color:#9A9490;">/ 4.0</div></td>
   <td><div class="kpi-label">Respuestas Positivas</div><div class="kpi-value" style="color:#1A5C3A">${POS_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 3-4</div></td>
   <td><div class="kpi-label">Respuestas Negativas</div><div class="kpi-value" style="color:#8B2A1F">${NEG_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 1-2</div></td>
-  <td><div class="kpi-label">Áreas Críticas</div><div class="kpi-value" style="color:#${critAreas.length>0?'8B2A1F':'1A5C3A'}">${critAreas.length}</div><div style="font-size:8pt;color:#9A9490;">Score &lt; 2.3</div></td>
+  <td><div class="kpi-label">Áreas Críticas</div><div class="kpi-value" style="color:#${critAreasTodas.length>0?'8B2A1F':'1A5C3A'}">${critAreasTodas.length}</div><div style="font-size:8pt;color:#9A9490;">Score &lt; 2.3</div></td>
   <td><div class="kpi-label">Participantes</div><div class="kpi-value" style="color:#1A2F4A">${total}</div><div style="font-size:8pt;color:#9A9490;">${totalAreas} áreas</div></td>
 </tr>
 </table>
@@ -2410,16 +2390,16 @@ function buildRTF({ company, fecha, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT,
 <tr><th>Área</th><th>Participantes</th><th>Score</th><th>Nivel</th></tr>
 ${[...critAreas,...warnAreas,...goodAreas].map(a=>`
 <tr>
-  <td><strong>${a.area}</strong></td>
+  <td><strong>${tx(a.area)}</strong></td>
   <td style="text-align:center">${a.count}</td>
   <td style="text-align:center;color:#${sc(a.overall)};font-weight:bold">${a.overall.toFixed(2)}</td>
   <td style="color:#${sc(a.overall)};font-weight:bold">${lv(a.overall)}</td>
 </tr>`).join('')}
 </table>
 
-${critAreas.length>0?`<p><span class="critico">Áreas críticas (score &lt; 2.3) — Intervención inmediata:</span> ${critAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
-${warnAreas.length>0?`<p><span class="atencion">Áreas en atención (2.3–3.0):</span> ${warnAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
-${goodAreas.length>0?`<p><span class="satisfactorio">Áreas satisfactorias (≥ 3.0):</span> ${goodAreas.map(a=>a.area+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${critAreas.length>0?`<p><span class="critico">Áreas críticas (score &lt; 2.3) — Intervención inmediata:</span> ${critAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${warnAreas.length>0?`<p><span class="atencion">Áreas en atención (2.3–3.0):</span> ${warnAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
+${goodAreas.length>0?`<p><span class="satisfactorio">Áreas satisfactorias (≥ 3.0):</span> ${goodAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
 ${areasReservadas.length>0?`<p style="font-size:9pt;color:#6B6560;font-style:italic;">Nota de confidencialidad: ${areasReservadas.length===1?'1 área no se desglosa':areasReservadas.length+' áreas no se desglosan'} por tener menos de ${MIN_ANONIMATO} respuestas, ya que el resultado identificaría a quien contestó. Sus respuestas sí están incluidas en el score global y en los resultados por dimensión.</p>`:''}
 
 <!-- SECCIÓN 4: DIMENSIONES -->
@@ -2432,11 +2412,11 @@ ${goodDims.length>0?`<p><span class="satisfactorio">Dimensiones satisfactorias (
 <h2>5. Información y Comunicación — Hallazgos Cualitativos</h2>
 ${(propuestas.length + observaciones.length) > 0 ? `
 <p>Se transcriben íntegras las ${propuestas.length + observaciones.length} respuestas abiertas recibidas, sin resumir ni recortar.</p>
-${propuestas.length>0?`<p><strong>Propuestas de mejora del personal (${propuestas.length})</strong></p><ol>${propuestas.map(p=>`<li><p>${p}</p></li>`).join('')}</ol>`:''}
-${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones.length})</strong></p><ol>${observaciones.map(o=>`<li><p>${o}</p></li>`).join('')}</ol>`:''}
+${propuestas.length>0?`<p><strong>Propuestas de mejora del personal (${propuestas.length})</strong></p><ol>${propuestas.map(p=>`<li><p>${tx(p)}</p></li>`).join('')}</ol>`:''}
+${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones.length})</strong></p><ol>${observaciones.map(o=>`<li><p>${tx(o)}</p></li>`).join('')}</ol>`:''}
 ` : `
 <p>No se recibieron comentarios abiertos. El análisis cuantitativo revela los siguientes hallazgos principales:</p>
-<ol>${hallazgos.map(h=>`<li><p>${h}</p></li>`).join('')}</ol>
+<ol>${hallazgos.map(h=>`<li><p>${tx(h)}</p></li>`).join('')}</ol>
 `}
 
 <!-- SECCIÓN 6: CONCLUSIÓN -->
@@ -2447,7 +2427,7 @@ ${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones
 <ul>
   <li>Programa de desarrollo de competencias para mandos medios: liderazgo, comunicación asertiva y gestión de equipos.</li>
   <li>Revisión y aplicación consistente del organigrama y políticas internas, sin excepciones ni preferencias.</li>
-  ${critAreas.length>0?`<li>Diagnóstico cualitativo urgente en áreas críticas: ${critAreas.map(a=>a.area).join(', ')}.</li>`:''}
+  ${critAreas.length>0?`<li>Diagnóstico cualitativo urgente en áreas críticas: ${critAreas.map(a=>tx(a.area)).join(', ')}.</li>`:''}
 </ul>
 
 <div class="prio-media">PRIORIDAD MEDIA — CORTO PLAZO</div>
@@ -2471,7 +2451,7 @@ ${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones
   <td style="border:none;width:45%;padding-top:30pt;">
     <div style="border-top:1px solid #9A9490;padding-top:4pt;">
       <p style="margin:0;font-size:9pt;">Elaborado por</p>
-      <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Recursos Humanos · ${company}</p>
+      <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Recursos Humanos · ${tx(company)}</p>
     </div>
   </td>
   <td style="border:none;width:10%;"></td>
