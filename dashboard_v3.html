@@ -790,6 +790,88 @@ function tipCelda(a, d) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// NOMBRES CORTOS DE DIMENSIÓN
+// La pregunta completa no cabe en las tablas del informe. Se deduce
+// un nombre corto por tema, y se puede corregir a mano desde
+// "Por Dimensión". Los ajustes se guardan por encuesta.
+// ═══════════════════════════════════════════════════════════════
+const TEMAS = [
+  { claves: ['retroalimentac'],                                   nombre: 'Retroalimentación del líder' },
+  { claves: ['capacitac', 'se fomente el estudio', 'adiestram'],  nombre: 'Capacitación' },
+  { claves: ['organigrama', 'lineas de mando', 'jerarqu'],        nombre: 'Respeto a líneas de mando' },
+  { claves: ['descripcion de puesto', 'corresponden estrictam'],  nombre: 'Correspondencia con el puesto' },
+  { claves: ['bien planeadas', 'planeac', 'planific'],            nombre: 'Planeación de actividades' },
+  { claves: ['autonomia', 'interrumpid'],                         nombre: 'Autonomía' },
+  { claves: ['lenguaje'],                                         nombre: 'Lenguaje profesional' },
+  { claves: ['acoso', 'tratadas con respeto', 'hostigam'],        nombre: 'Trato respetuoso' },
+  { claves: ['advertenc', 'amenaz'],                              nombre: 'Advertencias y amenazas' },
+  { claves: ['ubicacion exacta', 'vigilan', 'supervis'],          nombre: 'Supervisión' },
+  { claves: ['almorzar', 'interactuar', 'conviven'],              nombre: 'Convivencia' },
+  { claves: ['opiniones'],                                        nombre: 'Opiniones tomadas en cuenta' },
+  { claves: ['carga de trabajo', 'cargas de trabajo', 'horas extra'], nombre: 'Cargas de trabajo' },
+  { claves: ['reconocim', 'se reconoce'],                         nombre: 'Reconocimiento' },
+  { claves: ['sueldo', 'salario', 'remunerac'],                   nombre: 'Remuneración' },
+  { claves: ['herramient', 'recursos', 'material'],               nombre: 'Recursos de trabajo' },
+  { claves: ['segurid', 'riesgo de trabajo'],                     nombre: 'Seguridad' },
+  { claves: ['induccion', 'nuevo ingreso'],                       nombre: 'Inducción' },
+  { claves: ['comunicac', 'informacion'],                         nombre: 'Comunicación' },
+  { claves: ['clima laboral'],                                    nombre: 'Clima laboral general' },
+];
+
+function sinAcentos(s) {
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function nombreCortoAuto(label) {
+  const plano = sinAcentos(label);
+  for (let i = 0; i < TEMAS.length; i++) {
+    for (let j = 0; j < TEMAS[i].claves.length; j++) {
+      if (plano.indexOf(TEMAS[i].claves[j]) >= 0) return TEMAS[i].nombre;
+    }
+  }
+  // Sin tema reconocido: se recorta la pregunta por palabra completa
+  let txt = String(label||'').replace(/^[¿¡\s]+/, '').replace(/[?!.\s]+$/, '');
+  txt = txt.replace(/^(consideras que|considera que|siente que|crees que|cree que|en el trabajo|en la empresa)\s+/i, '');
+  if (txt.length <= 30) return txt.charAt(0).toUpperCase() + txt.slice(1);
+  txt = txt.slice(0, 30).replace(/\s+\S*$/, '');
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
+}
+
+function claveAlias(hoja) { return 'climaiq_alias_' + (hoja || CURRENT_SHEET || 'default'); }
+function aliasGuardados() {
+  try { return JSON.parse(localStorage.getItem(claveAlias()) || '{}'); } catch(e) { return {}; }
+}
+function nombreCorto(label) {
+  const guardados = aliasGuardados();
+  const propio = guardados[label];
+  return (propio && propio.trim()) ? propio.trim() : nombreCortoAuto(label);
+}
+function guardarAlias() {
+  const mapa = {};
+  document.querySelectorAll('[data-alias-de]').forEach(function(inp) {
+    const original = inp.getAttribute('data-alias-de');
+    const valor = inp.value.trim();
+    // Solo se guarda lo que difiere del automático, así el diccionario
+    // sigue mandando cuando no hay corrección explícita
+    if (valor && valor !== nombreCortoAuto(original)) mapa[original] = valor;
+  });
+  localStorage.setItem(claveAlias(), JSON.stringify(mapa));
+  const aviso = document.getElementById('aliasAviso');
+  if (aviso) {
+    const n = Object.keys(mapa).length;
+    aviso.textContent = n === 0
+      ? '✓ Guardado. Todas usan el nombre automático.'
+      : '✓ Guardado. ' + n + (n === 1 ? ' nombre personalizado.' : ' nombres personalizados.');
+    setTimeout(function(){ if (aviso) aviso.textContent = ''; }, 4000);
+  }
+  renderDimensions();
+}
+function restablecerAlias() {
+  localStorage.removeItem(claveAlias());
+  renderDimensions();
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CONCLUSIÓN DEL INDICADOR GLOBAL — por qué esa calificación
 // Se calcula en el navegador: sale al instante y no depende de la
 // llave de API. El botón permite que el modelo la reescriba.
@@ -1221,6 +1303,33 @@ function renderDimensions() {
                 <span style="font-family:'DM Serif Display',serif;color:var(--red)">${d.avg.toFixed(2)}</span>
               </div>`).join('')||'<div style="font-size:.75rem;color:var(--ink3);padding:.3rem 0">Sin dimensiones críticas ✓</div>'}
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Nombres cortos para el informe</div>
+          <div class="card-sub">La pregunta completa no cabe en las tablas del PDF. Estos nombres son los que aparecen ahí.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="font-size:.73rem;color:var(--ink3);line-height:1.6;margin-bottom:.9rem;">
+          Se proponen solos a partir del tema de cada pregunta. Corrige el que no te guste y guarda: se recuerda para
+          <strong>${esc(CURRENT_SHEET || 'esta encuesta')}</strong> en este navegador. El texto completo de la pregunta nunca se pierde:
+          va íntegro en la versión Word y en los tooltips.
+        </div>
+        ${sorted.map(d=>`
+          <div style="display:flex;align-items:center;gap:.7rem;padding:.4rem 0;border-bottom:1px solid var(--border);">
+            <div style="flex:1;font-size:.73rem;color:var(--ink2);line-height:1.4;">${esc(d.label)}</div>
+            <input type="text" data-alias-de="${esc(d.label)}" value="${esc(nombreCorto(d.label))}" maxlength="34"
+              style="width:210px;flex-shrink:0;font-family:inherit;font-size:.75rem;padding:.32rem .5rem;border:1px solid var(--border);border-radius:3px;background:var(--surface);color:var(--ink);">
+          </div>`).join('')}
+        <div style="display:flex;align-items:center;gap:.7rem;margin-top:.9rem;">
+          <button class="btn-ia" onclick="guardarAlias()">Guardar nombres</button>
+          <button class="btn-ia" onclick="restablecerAlias()">Restablecer automáticos</button>
+          <span id="aliasAviso" style="font-size:.72rem;color:var(--green);font-weight:600;"></span>
         </div>
       </div>
     </div>
@@ -1953,7 +2062,7 @@ function generarInformePDF() {
   let cupoA = y;
   areasOrdenadas.forEach(function(a) {
     const alto = altoFila(a.area + '   (' + participantes(a.count) + ')');
-    if (cupoA + alto > PIE - 50) return;   // se reservan 50 mm para las dimensiones
+    if (cupoA + alto > PIE - 44) return;   // se reservan 44 mm para las dimensiones
     cupoA += alto;
     areasMostradas.push(a);
   });
@@ -1975,30 +2084,38 @@ function generarInformePDF() {
   }
   y += 4;
 
-  subtitulo('Dimensiones con menor calificación');
-  const bajasTodas = critDims.concat(warnDims);
-  const bajas = [];
-  let cupoD = y;
-  bajasTodas.forEach(function(d) {
-    const alto = altoFila(d.label);
-    if (cupoD + alto > PIE - 8) return;    // 8 mm para la nota de cierre
-    cupoD += alto;
-    bajas.push(d);
+  // Con nombres cortos caben todas las dimensiones en dos columnas, de peor a
+  // mejor. El texto íntegro de cada pregunta va en la versión Word.
+  subtitulo('Por dimensión, de menor a mayor calificación');
+  const todasDims = dims.slice().sort((a,b) => a.avg - b.avg);
+  const bajas = todasDims.filter(d => d.avg < 3);
+
+  const anchoCol = (W - M*2 - 8) / 2;
+  const altoRen = 5.2;
+  const filasQueCaben = Math.max(1, Math.floor((PIE - 8 - y) / altoRen));
+  const mostradas = todasDims.slice(0, filasQueCaben * 2);
+  const filas = Math.ceil(mostradas.length / 2);
+
+  mostradas.forEach(function(d, i) {
+    const col  = i < filas ? 0 : 1;
+    const fila = i < filas ? i : i - filas;
+    const x  = M + col * (anchoCol + 8);
+    const yy = y + fila * altoRen;
+    doc.setFontSize(7.8); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    doc.text(t(sf(nombreCorto(d.label), 32)), x + 1, yy);
+    doc.setFont('helvetica','bold'); doc.setTextColor(...colorDe(d.avg));
+    doc.text(d.avg.toFixed(2), x + anchoCol - 1, yy, {align:'right'});
   });
-  if (bajas.length > 0) {
-    bajas.forEach(function(d) { filaCompacta(d.label, d.avg.toFixed(2), colorDe(d.avg)); });
-    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-    const nota = bajas.length < bajasTodas.length
-      ? 'Se listan las ' + bajas.length + ' dimensiones más bajas de ' + bajasTodas.length + ' que se ubican por debajo de 3.0. El detalle completo está en la versión Word.'
-      : (goodDims.length > 0 ? 'Las otras ' + goodDims.length + ' dimensiones evaluadas se ubican en 3.0 o más.' : '');
-    if (nota) { doc.text(t(nota), M+2, y); y += 4; }
-    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-  } else {
-    doc.setFontSize(8); doc.setTextColor(...GREEN);
-    doc.text(t('Ninguna dimensión se ubica por debajo de 3.0.'), M+2, y);
-    doc.setTextColor(...TXT);
-    y += 5;
-  }
+  doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+  y += filas * altoRen + 2;
+
+  doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+  const notaDims = mostradas.length < todasDims.length
+    ? 'Se listan ' + mostradas.length + ' de ' + todasDims.length + ' dimensiones. El texto completo de cada pregunta y el detalle restante están en la versión Word.'
+    : 'Nombres abreviados. El texto completo de cada pregunta está en la versión Word.';
+  doc.text(t(notaDims), M+1, y);
+  doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+  y += 4;
 
   // ── PÁGINA 2 ──────────────────────────────────────────────────
   newPage();
@@ -2077,7 +2194,7 @@ function generarInformePDF() {
       ' con calificación crítica mediante entrevistas dirigidas y plan de acción con responsable y fecha.']);
   }
   if (bajas.length > 0) {
-    acciones.push(['Inmediata', 'Atender la dimensión peor calificada: ' + bajas[0].label + ' (' + bajas[0].avg.toFixed(2) + ').']);
+    acciones.push(['Inmediata', 'Atender la dimensión peor calificada: ' + nombreCorto(bajas[0].label) + ' (' + bajas[0].avg.toFixed(2) + ').']);
   }
   acciones.push(['Alta', 'Formalizar y difundir el organigrama y las descripciones de puesto, con límites claros de responsabilidad por área.']);
   acciones.push(['Alta', 'Establecer un programa de desarrollo para mandos medios en liderazgo, comunicación y asignación de cargas de trabajo.']);
