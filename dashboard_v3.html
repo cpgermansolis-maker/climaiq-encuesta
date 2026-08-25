@@ -470,19 +470,31 @@ async function testConn() {
   }
 }
 
+// Devuelve la URL de datos respetando la encuesta que el usuario tenga elegida
+function urlDatos() {
+  const hoja = CURRENT_SHEET || localStorage.getItem('climaiq_sheet') || '';
+  return URL_GAS + '?action=getData' + (hoja ? '&sheet=' + encodeURIComponent(hoja) : '');
+}
+
 async function loadData() {
   if (!URL_GAS) return;
   setSt('loading','Cargando...');
   document.getElementById('btnRefresh').disabled = true;
   try {
-    const res = await fetch(URL_GAS + '?action=getData');
+    const res = await fetch(urlDatos());
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Error desconocido');
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
     lastUpdate = new Date();
-    const cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
-    if (cfg.identity?.companyName) document.getElementById('tbCompany').textContent = '· ' + cfg.identity.companyName;
+    if (json.sheet) {
+      CURRENT_SHEET = json.sheet;
+      localStorage.setItem('climaiq_sheet', json.sheet);
+      document.getElementById('tbCompany').textContent = '· ' + json.sheet;
+    } else {
+      const cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
+      if (cfg.identity?.companyName) document.getElementById('tbCompany').textContent = '· ' + cfg.identity.companyName;
+    }
     if (!DATA.length) { setSt('ok','Sin respuestas'); setupBanner('success','Conectado. Aún no hay respuestas en la hoja.'); return; }
     renderAll();
     setSt('ok', DATA.length + ' respuestas · En vivo');
@@ -507,7 +519,7 @@ async function refresh() {
   setSt('loading','Actualizando...');
   document.getElementById('btnRefresh').disabled = true;
   try {
-    const res = await fetch(URL_GAS + '?action=getData');
+    const res = await fetch(urlDatos());
     const json = await res.json();
     if (!json.success) throw new Error(json.error);
     DATA = normalizeData(json.data || []);
@@ -724,7 +736,7 @@ function renderOverview() {
                   <div style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:var(--ink2);">
                     <div style="width:8px;height:8px;background:${c};border-radius:1px;flex-shrink:0;"></div>
                     ${i+1} — ${['Nunca','Pocas veces','Frecuentemente','Siempre'][i]}
-                    <span style="color:var(--ink3)">${dist[i]} de ${total} resp. (${total>0?Math.round(dist[i]/total*100):0}%)</span>
+                    <span style="color:var(--ink3)">(${total>0?Math.round(dist[i]/total*100):0}%)</span>
                   </div>`).join('')}
               </div>
             </div>
@@ -1018,13 +1030,11 @@ function renderAlerts() {
           </div>
           <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
             <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${positivePct>=60?'var(--green)':'var(--red)'}">${positivePct}%</div>
-            <div style="font-size:.75rem;color:var(--ink3);">${allScores.filter(v=>v>=3).length} de ${total} resp.</div>
             <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Respuestas Positivas (3+4)</div>
             <div style="font-size:.8rem;font-weight:600;color:${positivePct>=60?'var(--green)':'var(--red)'};margin-top:.3rem;">${positivePct>=75?'Muy positivo':positivePct>=60?'Positivo':positivePct>=45?'Mixto':'Preocupante'}</div>
           </div>
           <div style="text-align:center;padding:.5rem;border-left:1px solid var(--border);">
             <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:${totalAlerts===0?'var(--green)':'var(--red)'}">${totalAlerts}</div>
-            <div style="font-size:.78rem;font-weight:600;color:var(--ink3);">${critDims.length} dim. + ${critAreas.length} áreas</div>
             <div style="font-size:.72rem;color:var(--ink3);margin-top:.2rem;">Alertas Críticas Activas</div>
             <div style="font-size:.8rem;font-weight:600;color:${totalAlerts===0?'var(--green)':'var(--red)'};margin-top:.3rem;">${totalAlerts===0?'Sin alertas críticas':'Requieren acción inmediata'}</div>
           </div>
@@ -1162,8 +1172,11 @@ function wrapLabel(s, max) {
           !s.name.startsWith('_labels_')
         );
         if (AVAILABLE_SHEETS.length > 0) {
-          // Cargar la hoja con más respuestas (la más reciente activa)
-          const best = AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
+          // Reabrir la última encuesta que se estuvo viendo; si ya no existe,
+          // caer en la hoja con más respuestas
+          const recordada = localStorage.getItem('climaiq_sheet') || '';
+          const previa = AVAILABLE_SHEETS.find(s => s.name === recordada);
+          const best = previa || AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
           await loadSheet(best.name);
         } else {
           loadData(); // fallback
@@ -1186,7 +1199,7 @@ function wrapLabel(s, max) {
 // ── Normalizar acentos para jsPDF ──
 const t = s => String(s).replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').replace(/Ñ/g,'N').replace(/ñ/g,'n').replace(/ü/g,'u').replace(/—/g,'-').replace(/–/g,'-').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/…/g,'...');
 
-n// ── GENERAR INFORME PDF COSO ─────────────────────────────────
+// ── GENERAR INFORME PDF COSO ─────────────────────────────────
 // ══════════════════════════════════════════════════════════════
 // GENERAR RESUMEN EJECUTIVO CON IA + PDF
 // ══════════════════════════════════════════════════════════════
@@ -1933,6 +1946,7 @@ async function renderSelector() {
 async function loadSheet(sheetName) {
   if (!URL_GAS) return;
   CURRENT_SHEET = sheetName;
+  localStorage.setItem('climaiq_sheet', sheetName);
   setSt('loading', 'Cargando ' + sheetName + '...');
   try {
     const res = await fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(sheetName));

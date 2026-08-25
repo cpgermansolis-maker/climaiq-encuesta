@@ -389,8 +389,7 @@ textarea{resize:vertical;min-height:82px;}
     </div><div class="q-item" id="qi_q_global_6">
       <div class="q-text-row">
         <div class="q-number">7</div>
-        <div class="q-text">
-En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesional y respetuoso? '</div>
+        <div class="q-text">En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesional y respetuoso?</div>
       </div>
       <div class="rating-row">
         <label class="rating-opt">
@@ -485,9 +484,9 @@ En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesiona
 
 <script>
 // ── CONFIGURACIÓN INTEGRADA (generada automáticamente por el Panel Admin) ──
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJ6IorTO2ZOe_00a7ydf2Hj7T4xO60OYXiYSBmuwGW2mLY0Ao0YZWNSnHP1SVeO_lb/exec';
-const SHEET_NAME = 'Arrendadora de Bienes Muebles e Inmueble';
-const SURVEY_COLS = [{"key":"nombre","label":"Nombre"},{"key":"cargo","label":"Cargo"},{"key":"jefe","label":"Jefe Inmediato"},{"key":"area","label":"Área"},{"key":"isAnonymous","label":"Anónimo"},{"key":"propuesta","label":"Propuestas de mejora"},{"key":"observaciones","label":"Observaciones"},{"key":"q_global_0","label":"¿Consideras que el clima laboral en el área donde tr…"},{"key":"q_global_1","label":"¿En el trabajo mis opiniones son tomadas en cuenta?"},{"key":"q_global_2","label":"¿Las personas son tratadas con respeto, sin importar…"},{"key":"q_global_3","label":"¿Consideras que las actividades que se te asignan so…"},{"key":"q_global_4","label":"¿Mi líder en cada actividad me brinda información y …"},{"key":"q_global_5","label":"¿El personal respeta las líneas de mando conforme al…"},{"key":"q_global_6","label":"\nEn las interacciones cotidianas del equipo, ¿se man…"}];
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNnPykTYJc2v3UlGyBkecxgC5geHaQYwE5KfMfQxA7L1gNFihDjM2_D9NNpKuWwiIJ/exec';
+const SHEET_NAME = 'Arrendadora de Bienes Muebles e Inmuebles';
+const SURVEY_COLS = [{"key":"nombre","label":"Nombre"},{"key":"cargo","label":"Cargo"},{"key":"jefe","label":"Jefe Inmediato"},{"key":"area","label":"Área"},{"key":"isAnonymous","label":"Anónimo"},{"key":"propuesta","label":"Propuestas de mejora"},{"key":"observaciones","label":"Observaciones"},{"key":"q_global_0","label":"¿Consideras que el clima laboral en el área donde trabajas es bueno?"},{"key":"q_global_1","label":"¿En el trabajo mis opiniones son tomadas en cuenta?"},{"key":"q_global_2","label":"¿Las personas son tratadas con respeto, sin importar cuál sea su trabajo o área (acoso laboral)?"},{"key":"q_global_3","label":"¿Consideras que las actividades que se te asignan son bien planeadas?"},{"key":"q_global_4","label":"¿Mi líder en cada actividad me brinda información y retroalimentación necesaria para el logro del objetivo asignado?"},{"key":"q_global_5","label":"¿El personal respeta las líneas de mando conforme al organigrama y procesos escritos?"},{"key":"q_global_6","label":"En las interacciones cotidianas del equipo, ¿se mantiene un lenguaje profesional y respetuoso?"}];
 const AREAS = [{"id":"area_1787607810384","name":"Administración","customQ":[]},{"id":"area_1787607816782","name":"Operación","customQ":[]}];
 const GLOBAL_QS_COUNT = 7;
 const SCALE = ["Nunca","Pocas veces","Frecuentemente","Siempre"];
@@ -629,18 +628,35 @@ document.getElementById('surveyForm').addEventListener('submit', async function(
 
   let synced = false;
   if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.trim()) {
+    // Google Apps Script lee los datos desde e.parameter.payload
+    const form = new FormData();
+    form.append('payload', JSON.stringify(payload));
     try {
-      // Usamos no-cors + FormData para evitar bloqueos CORS en celulares
-      // Google Apps Script lee los datos desde e.parameter.payload
-      const form = new FormData();
-      form.append('payload', JSON.stringify(payload));
-      await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form, mode: 'no-cors' });
-      synced = true; // no-cors no devuelve respuesta, asumimos éxito
-    } catch(err) { synced = false; }
+      // Intento normal: sí podemos leer la respuesta y confirmar el guardado
+      const res  = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form });
+      const json = await res.json();
+      synced = !!(json && json.success);
+    } catch(err) {
+      // Algunos navegadores móviles bloquean la lectura de la respuesta.
+      // Reenviamos a ciegas y verificamos que el script esté vivo.
+      try {
+        await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form, mode: 'no-cors' });
+        const ping = await fetch(APPS_SCRIPT_URL + '?test=1').then(r => r.json()).catch(() => null);
+        synced = !!(ping && ping.status === 'ok');
+      } catch(err2) { synced = false; }
+    }
   }
 
   await new Promise(r => setTimeout(r, 800));
   document.getElementById('loadingOverlay').classList.remove('show');
+
+  if (!synced) {
+    document.getElementById('submitBtn').disabled = false;
+    alert('No se pudo guardar tu respuesta: no hay conexión con el servidor.\n\n' +
+          'Revisa tu conexión e intenta enviar de nuevo. Si el problema sigue, avisa a Recursos Humanos ' +
+          'para no perder tus respuestas.');
+    return;
+  }
 
   document.getElementById('surveyBodyForm').style.display = 'none';
   const ps = document.getElementById('progressSection');
