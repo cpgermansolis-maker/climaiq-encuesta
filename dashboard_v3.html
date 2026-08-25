@@ -1430,30 +1430,43 @@ function generarInformePDF() {
   }
 
   function paragraph(txt, indent=0, lineH=5) {
+    // Mismo criterio que el resumen ejecutivo: un solo corte de linea y avance
+    // renglon por renglon, para que un parrafo largo pase de pagina en vez de
+    // encimarse con lo que sigue.
     const maxW = W - M*2 - indent;
+    const estilo = function() { doc.setFontSize(9); doc.setTextColor(44, 42, 40); };
+    estilo();
     const lines = doc.splitTextToSize(txt, maxW);
-    checkY(lines.length * lineH + 2);
-    doc.setFontSize(9); doc.setTextColor(44, 42, 40);
-    doc.text(lines, M + indent, y, { maxWidth: maxW });
-    y += lines.length * lineH + 2;
+    lines.forEach(function(linea) {
+      if (y + lineH > 275) { newPage(); estilo(); }
+      doc.text(linea, M + indent, y);
+      y += lineH;
+    });
+    y += 2;
   }
 
   function scoreRow(label, score, color) {
-    checkY(8);
     const scoreColor = score>=3?GREEN:score>=2.3?AMBER:RED;
+    // El tamano de fuente debe fijarse ANTES de cortar: splitTextToSize mide
+    // con la fuente activa.
     doc.setFontSize(8.5); doc.setTextColor(44,42,40);
     const labelLines = doc.splitTextToSize(label, W-M*2-25);
-    doc.text(labelLines, M+2, y, { maxWidth: W-M*2-25 });
+    const altoFila = Math.max(labelLines.length*4.5, 7) + 2;
+    checkY(altoFila);
+    // newPage deja fuente 7 y otro color, hay que reponerlos
+    doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40);
+    labelLines.forEach(function(linea, i) { doc.text(linea, M+2, y + i*4.5); });
     doc.setFont('helvetica','bold'); doc.setTextColor(...scoreColor);
     doc.text(score.toFixed(2), W-M-2, y, {align:'right'});
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    // mini bar
+    // mini bar — debajo del ultimo renglon de la etiqueta, no encima de el
     const barW = W-M*2-28;
+    const barY = y + (labelLines.length-1)*4.5 + 1.5;
     doc.setFillColor(...LIGHT);
-    doc.rect(M+2, y+1.5, barW, 2.5, 'F');
+    doc.rect(M+2, barY, barW, 2.5, 'F');
     doc.setFillColor(...scoreColor);
-    doc.rect(M+2, y+1.5, barW*(score/4), 2.5, 'F');
-    y += Math.max(labelLines.length*4.5, 7) + 2;
+    doc.rect(M+2, barY, barW*(score/4), 2.5, 'F');
+    y += altoFila;
   }
 
   function kpiBox(x, bY, bW, bH, label, value, color) {
@@ -1504,15 +1517,23 @@ function generarInformePDF() {
   // ══ RESUMEN EJECUTIVO ══
   if (window._executiveSummary) {
     sectionTitle('Resumen Ejecutivo', 0);
-    // Split into sentences for better page break handling
-    const execText = t(window._executiveSummary);
-    const maxW = W - M*2;
-    const execLines = doc.splitTextToSize(execText, maxW);
-    const lineH = 5.5;
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(44, 42, 40);
-    checkY(execLines.length * lineH + 6);
-    doc.text(execLines, M, y, { maxWidth: maxW, lineHeightFactor: 1.4 });
-    y += execLines.length * lineH + 6;
+    // El texto se corta UNA sola vez. Pasarle maxWidth a doc.text() con las
+    // lineas ya cortadas hacia que las volviera a cortar: se dibujaban mas
+    // renglones de los que se habian contado y el bloque se encimaba con la
+    // seccion siguiente. Ahora se dibuja renglon por renglon y la 'y' avanza
+    // exactamente lo que se dibujo.
+    const estiloResumen = function() {
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(44, 42, 40);
+    };
+    estiloResumen();
+    const execLines = doc.splitTextToSize(t(window._executiveSummary), W - M*2);
+    const lineH = 5;
+    execLines.forEach(function(linea) {
+      if (y + lineH > 275) { newPage(); estiloResumen(); }
+      doc.text(linea, M, y);
+      y += lineH;
+    });
+    y += 6;
   }
 
   // ══ KPIs ══
