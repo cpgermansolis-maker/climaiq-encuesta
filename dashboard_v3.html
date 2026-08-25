@@ -1293,7 +1293,7 @@ async function generarPDFconResumen() {
 
     const scoreLabel = globalScore >= 3.5 ? 'Excelente' : globalScore >= 3 ? 'Bueno' : globalScore >= 2.3 ? 'Regular — requiere atención' : 'Crítico — requiere intervención inmediata';
 
-    const prompt = `Eres un auditor interno senior. Redacta un RESUMEN EJECUTIVO breve (máximo 180 palabras) para un informe de clima laboral de ${company} con fecha ${fecha}.
+    const prompt = `Eres un auditor interno senior. Redacta un RESUMEN EJECUTIVO breve (máximo 135 palabras) para un informe de clima laboral de ${company} con fecha ${fecha}. Es la pieza central de un informe ejecutivo de dos páginas dirigido a la Dirección General, así que cada frase debe aportar: nada de relleno ni de repetir cifras que ya están en las tablas.
 
 Datos clave:
 - Score global: ${globalScore}/4.0 (${scoreLabel})
@@ -1312,7 +1312,7 @@ El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo 
 4. RECOMENDACIÓN: acción concreta prioritaria
 5. FECHA DE REMEDIACIÓN PROPUESTA: plazo sugerido (en meses)
 
-Tono: ejecutivo, directo, sin tecnicismos. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 150 palabras en un solo párrafo corrido.`;
+Tono: ejecutivo, directo y elocuente, sin tecnicismos ni lenguaje inflado. Escribe en voz activa. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 135 palabras en un solo párrafo corrido.`;
 
     const apiKey = localStorage.getItem('climaiq_anthropic_key') || '';
     if (!apiKey) {
@@ -1458,61 +1458,6 @@ function generarInformePDF() {
     doc.setTextColor(0,0,0);
   }
 
-  function checkY(needed) { if (y + needed > 275) { newPage(); } }
-
-  function sectionTitle(txt, marginTop=8) {
-    checkY(marginTop+10);
-    y += marginTop;
-    doc.setFillColor(...LIGHT);
-    doc.rect(M, y, W-M*2, 7, 'F');
-    doc.setDrawColor(...NAVY); doc.setLineWidth(.4);
-    doc.line(M, y, M, y+7);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-    doc.text(txt.toUpperCase(), M+3, y+4.8);
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    y += 10;
-  }
-
-  function paragraph(txt, indent=0, lineH=5) {
-    // Mismo criterio que el resumen ejecutivo: un solo corte de linea y avance
-    // renglon por renglon, para que un parrafo largo pase de pagina en vez de
-    // encimarse con lo que sigue.
-    const maxW = W - M*2 - indent;
-    const estilo = function() { doc.setFontSize(9); doc.setTextColor(44, 42, 40); };
-    estilo();
-    const lines = doc.splitTextToSize(txt, maxW);
-    lines.forEach(function(linea) {
-      if (y + lineH > 275) { newPage(); estilo(); }
-      doc.text(linea, M + indent, y);
-      y += lineH;
-    });
-    y += 2;
-  }
-
-  function scoreRow(label, score, color) {
-    const scoreColor = score>=3?GREEN:score>=2.3?AMBER:RED;
-    // El tamano de fuente debe fijarse ANTES de cortar: splitTextToSize mide
-    // con la fuente activa.
-    doc.setFontSize(8.5); doc.setTextColor(44,42,40);
-    const labelLines = doc.splitTextToSize(label, W-M*2-25);
-    const altoFila = Math.max(labelLines.length*4.5, 7) + 2;
-    checkY(altoFila);
-    // newPage deja fuente 7 y otro color, hay que reponerlos
-    doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40);
-    labelLines.forEach(function(linea, i) { doc.text(linea, M+2, y + i*4.5); });
-    doc.setFont('helvetica','bold'); doc.setTextColor(...scoreColor);
-    doc.text(score.toFixed(2), W-M-2, y, {align:'right'});
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    // mini bar — debajo del ultimo renglon de la etiqueta, no encima de el
-    const barW = W-M*2-28;
-    const barY = y + (labelLines.length-1)*4.5 + 1.5;
-    doc.setFillColor(...LIGHT);
-    doc.rect(M+2, barY, barW, 2.5, 'F');
-    doc.setFillColor(...scoreColor);
-    doc.rect(M+2, barY, barW*(score/4), 2.5, 'F');
-    y += altoFila;
-  }
-
   function kpiBox(x, bY, bW, bH, label, value, color) {
     doc.setFillColor(250,250,248); doc.setDrawColor(...LIGHT);
     doc.rect(x, bY, bW, bH, 'FD');
@@ -1562,245 +1507,273 @@ function generarInformePDF() {
   doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
   doc.setTextColor(0,0,0);
 
-  // ══ RESUMEN EJECUTIVO ══
-  if (window._executiveSummary) {
-    sectionTitle('Resumen Ejecutivo', 0);
-    // El texto se corta UNA sola vez. Pasarle maxWidth a doc.text() con las
-    // lineas ya cortadas hacia que las volviera a cortar: se dibujaban mas
-    // renglones de los que se habian contado y el bloque se encimaba con la
-    // seccion siguiente. Ahora se dibuja renglon por renglon y la 'y' avanza
-    // exactamente lo que se dibujo.
-    const estiloResumen = function() {
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(44, 42, 40);
-    };
-    estiloResumen();
-    const execLines = doc.splitTextToSize(t(window._executiveSummary), W - M*2);
-    const lineH = 5;
-    execLines.forEach(function(linea) {
-      if (y + lineH > 275) { newPage(); estiloResumen(); }
-      doc.text(linea, M, y);
-      y += lineH;
+  // ═══════════════════════════════════════════════════════════════
+  // INFORME EJECUTIVO — dos páginas
+  // Lo que circula. La evidencia cualitativa completa vive en la
+  // versión Word, que se anexa como papel de trabajo.
+  // ═══════════════════════════════════════════════════════════════
+
+  const TXT = [44, 42, 40];
+  const PIE = 278;                 // por debajo de esto ya es el pie de página
+
+  function tituloBloque(txt) {
+    doc.setFillColor(...LIGHT);
+    doc.rect(M, y, W-M*2, 7, 'F');
+    doc.setDrawColor(...NAVY); doc.setLineWidth(.5);
+    doc.line(M, y, M, y+7);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.text(t(txt.toUpperCase()), M+3, y+4.8);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += 11;
+  }
+
+  // Fila etiqueta/valor. La etiqueta se envuelve, nunca se recorta.
+  function filaCompacta(etiqueta, valor, color) {
+    const anchoTexto = W - M*2 - 24;
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    const lineas = doc.splitTextToSize(t(etiqueta), anchoTexto);
+    lineas.forEach(function(l, i) { doc.text(l, M+2, y + i*4.2); });
+    doc.setFont('helvetica','bold'); doc.setTextColor(...color);
+    doc.text(valor, W-M-2, y, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += lineas.length*4.2 + 1.8;
+  }
+
+  function subtitulo(txt) {
+    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
+    doc.text(t(txt.toUpperCase()), M, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += 4.5;
+  }
+
+  function centrado(txt, tam, color) {
+    doc.setFontSize(tam); doc.setFont('helvetica','normal'); doc.setTextColor(...color);
+    doc.splitTextToSize(t(txt), W-M*2).forEach(function(l) {
+      doc.text(l, W/2, y, {align:'center'}); y += 4;
     });
-    y += 6;
   }
 
-  // ══ KPIs ══
-  sectionTitle('1. Indicadores Clave de Desempeño', 0);
+  const colorDe = v => v>=3 ? GREEN : v>=2.3 ? AMBER : RED;
+
+  // ── PÁGINA 1 · RESUMEN EJECUTIVO ──────────────────────────────
+  tituloBloque('Resumen ejecutivo');
+
+  const resumenTexto = window._executiveSummary ||
+    ('La evaluación de clima laboral de ' + companyName + ' arroja una calificación global de ' +
+     global.toFixed(2) + ' de 4.0, con ' + positivePct + '% de respuestas en niveles positivos y ' +
+     negativePct + '% en niveles negativos sobre ' + DATA.length + ' participantes. ' +
+     (critAreasTodas.length > 0
+        ? 'Se identifican ' + critAreasTodas.length + ' área(s) en nivel crítico que requieren intervención inmediata. '
+        : 'No se identifican áreas en nivel crítico. ') +
+     (critDims.concat(warnDims).length > 0
+        ? 'Las dimensiones con menor calificación son ' + critDims.concat(warnDims).slice(0,3).map(d=>d.label+' ('+d.avg.toFixed(2)+')').join('; ') + '. '
+        : '') +
+     'Bajo el Marco COSO, estos resultados inciden en el Ambiente de Control que sustenta el sistema de control interno de la organización.');
+
+  // El recuadro no puede crecer sin límite o empujaría el resto fuera de la
+  // primera hoja. Si el texto viene largo se achica la letra, nunca se recorta.
+  doc.setFont('helvetica','normal');
+  let tamResumen = 9, interResumen = 5, lineasResumen = [];
+  while (true) {
+    doc.setFontSize(tamResumen);
+    lineasResumen = doc.splitTextToSize(t(resumenTexto), W-M*2-12);
+    interResumen = tamResumen * 0.56;
+    if (lineasResumen.length * interResumen <= 64 || tamResumen <= 6.5) break;
+    tamResumen -= 0.5;
+  }
+  const altoCaja = lineasResumen.length*interResumen + 9;
+  doc.setFillColor(250,249,246); doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
+  doc.rect(M, y, W-M*2, altoCaja, 'FD');
+  doc.setFillColor(...GOLD); doc.rect(M, y, 1.6, altoCaja, 'F');
+  doc.setTextColor(...TXT);
+  lineasResumen.forEach(function(l, i) { doc.text(l, M+7, y + 6.5 + i*interResumen); });
+  y += altoCaja + 8;
+
+  // ── PÁGINA 1 · CIFRAS CLAVE ───────────────────────────────────
+  tituloBloque('Cifras clave');
   const kpiW = (W - M*2 - 6) / 4;
-  const kpiY = y;
-  kpiBox(M,           kpiY, kpiW, 20, 'Score Global',    global.toFixed(2), global>=3?GREEN:global>=2.3?AMBER:RED);
-  kpiBox(M+kpiW+2,    kpiY, kpiW, 20, 'Positivas',       positivePct+'%',   GREEN);
-  kpiBox(M+kpiW*2+4,  kpiY, kpiW, 20, 'Negativas',       negativePct+'%',   RED);
-  kpiBox(M+kpiW*3+6,  kpiY, kpiW, 20, 'Áreas Críticas',  critAreas.length,  critAreas.length>0?RED:GREEN);
-  y += 25;
+  kpiBox(M,          y, kpiW, 20, 'Score Global',   global.toFixed(2), colorDe(global));
+  kpiBox(M+kpiW+2,   y, kpiW, 20, 'Positivas',      positivePct+'%',   GREEN);
+  kpiBox(M+kpiW*2+4, y, kpiW, 20, 'Negativas',      negativePct+'%',   RED);
+  kpiBox(M+kpiW*3+6, y, kpiW, 20, 'Alertas',        totalAlerts,       totalAlerts>0?RED:GREEN);
+  y += 24;
 
-  // Score level badge
-  const lvlColor = global>=3?GREEN:global>=2.3?AMBER:RED;
-  doc.setFillColor(...lvlColor);
-  doc.rect(M, y, 45, 7, 'F');
-  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  doc.text('NIVEL: ' + scoreLabel.toUpperCase(), M+3, y+5);
-  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-  y += 12;
+  const lvlColor = colorDe(global);
+  doc.setFillColor(...lvlColor); doc.rect(M, y-3.4, 54, 5.2, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+  doc.text(t('NIVEL: ' + scoreLabel.toUpperCase()), M+27, y, {align:'center'});
+  doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY);
+  doc.text(t('Escala 1 (Nunca) a 4 (Siempre) · Crítico < 2.3 · Atención 2.3 a 3.0 · Satisfactorio >= 3.0'), W-M, y, {align:'right'});
+  doc.setTextColor(0,0,0);
+  y += 10;
 
-  // ══ DIAGNÓSTICO EJECUTIVO ══
-  sectionTitle('2. Diagnóstico Ejecutivo — Ambiente de Control COSO');
+  // ── PÁGINA 1 · DÓNDE ESTÁ EL RIESGO ───────────────────────────
+  tituloBloque('Dónde está el riesgo');
 
-  const diagnosticoBase = `Con fundamento en la Encuesta de Clima Laboral aplicada a ${DATA.length} colaboradores de ${getAreas().length} áreas, y considerando los cinco componentes del Marco de Control Interno COSO, se presenta el siguiente diagnóstico ejecutivo.`;
-  paragraph(diagnosticoBase);
-
-  const diagnosticoScore = global>=3
-    ? `El score global de ${global.toFixed(2)}/4.0 refleja un clima laboral SATISFACTORIO. El ${positivePct}% de las respuestas se ubica en niveles positivos (3-4), lo que indica un entorno organizacional favorable. Se recomienda mantener las prácticas actuales y continuar fortaleciendo las dimensiones con menor puntaje.`
-    : global>=2.3
-    ? `El score global de ${global.toFixed(2)}/4.0 indica un clima laboral en nivel MODERADO que requiere atención. El ${negativePct}% de las respuestas se ubica en niveles negativos (1-2), señalando áreas de mejora que deben atenderse antes de convertirse en riesgos críticos. Desde la perspectiva COSO, esta situación compromete el Ambiente de Control que sustenta todo el sistema de control interno.`
-    : `El score global de ${global.toFixed(2)}/4.0 configura un escenario CRÍTICO que requiere intervención inmediata. El ${negativePct}% de las respuestas corresponde a niveles negativos (1-2), lo que representa un riesgo organizacional significativo. Bajo el marco COSO, esta condición deteriora el Ambiente de Control, debilitando los valores, la estructura de autoridad y la cultura de cumplimiento necesarios para la operación eficaz de la organización.`;
-  paragraph(diagnosticoScore);
-
-  // ══ RESULTADOS POR ÁREA ══
-  sectionTitle('3. Evaluación de Riesgos por Área');
-
-  if (critAreas.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
-    doc.text(t('ÁREAS CRÍTICAS (score < 2.3) - Intervención Inmediata:'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    critAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
+  // Cuánto ocuparía una fila, para no escribir más de lo que cabe en la hoja
+  function altoFila(etiqueta) {
+    doc.setFontSize(8);
+    return doc.splitTextToSize(t(etiqueta), W-M*2-24).length * 4.2 + 1.8;
   }
-  if (warnAreas.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...AMBER);
-    doc.text(t('ÁREAS EN ATENCIÓN (2.3-3.0) - Seguimiento:'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    warnAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
-  }
-  if (goodAreas.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
-    doc.text(t('ÁREAS SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    goodAreas.forEach(a => scoreRow(t(a.area) + '  (' + participantes(a.count) + ')', a.overall));
+
+  subtitulo('Por área');
+  const areasOrdenadas = areasPublicables.slice().sort((a,b) => a.overall - b.overall);
+  const areasMostradas = [];
+  let cupoA = y;
+  areasOrdenadas.forEach(function(a) {
+    const alto = altoFila(a.area + '   (' + participantes(a.count) + ')');
+    if (cupoA + alto > PIE - 50) return;   // se reservan 50 mm para las dimensiones
+    cupoA += alto;
+    areasMostradas.push(a);
+  });
+  areasMostradas.forEach(function(a) {
+    filaCompacta(a.area + '   (' + participantes(a.count) + ')', a.overall.toFixed(2), colorDe(a.overall));
+  });
+  if (areasMostradas.length < areasOrdenadas.length) {
+    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    doc.text(t('Se listan las ' + areasMostradas.length + ' áreas de menor calificación, de ' + areasOrdenadas.length + '. El detalle completo está en la versión Word.'), M+2, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += 4;
   }
   if (areasReservadas.length > 0) {
-    y += 2;
-    const nota = 'Nota de confidencialidad: ' + areasReservadas.length +
-      (areasReservadas.length === 1 ? ' área no se desglosa' : ' áreas no se desglosan') +
-      ' por tener menos de ' + MIN_ANONIMATO + ' respuestas, ya que el resultado identificaría a quien contestó. ' +
-      'Sus respuestas sí están incluidas en el score global y en los resultados por dimensión.';
-    const estiloNota = function() {
-      doc.setFontSize(7.5); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-    };
-    estiloNota();
-    doc.splitTextToSize(t(nota), W - M*2).forEach(function(linea) {
-      if (y + 4 > 275) { newPage(); estiloNota(); }
-      doc.text(linea, M, y);
-      y += 4;
-    });
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    y += 2;
+    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    doc.splitTextToSize(t('No se desglosa ' + (areasReservadas.length===1?'1 área':areasReservadas.length+' áreas') +
+      ' con menos de ' + MIN_ANONIMATO + ' respuestas: el resultado identificaría a quien contestó. Sus respuestas sí cuentan en las cifras globales.'),
+      W-M*2).forEach(function(l) { doc.text(l, M+2, y); y += 3.4; });
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
   }
+  y += 4;
 
-  // ══ ACTIVIDADES DE CONTROL ══
-  sectionTitle('4. Actividades de Control — Resultados por Dimensión');
-
-  if (critDims.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
-    doc.text(t('DIMENSIONES CRITICAS (< 2.3):'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    critDims.forEach(d => scoreRow(t(d.label), d.avg));
-  }
-  if (warnDims.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...AMBER);
-    doc.text(t('DIMENSIONES EN ATENCION (2.3-3.0):'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    warnDims.forEach(d => scoreRow(t(d.label), d.avg));
-  }
-  if (goodDims.length > 0) {
-    checkY(6);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
-    doc.text(t('DIMENSIONES SATISFACTORIAS (>= 3.0):'), M, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    goodDims.forEach(d => scoreRow(t(d.label), d.avg));
-  }
-
-  // ══ INFORMACIÓN Y COMUNICACIÓN ══
-  sectionTitle('5. Información y Comunicación — Hallazgos Cualitativos');
-
-  // Hallazgos dinámicos desde respuestas abiertas
-  const _propuestas = DATA.map(d => d.propuesta || d['Propuestas de mejora'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
-  const _observaciones = DATA.map(d => d.observaciones || d['Observaciones'] || '').filter(s => s && s.length > 10 && s.toLowerCase().trim() !== 'na');
-  // Antes esto se quedaba con los primeros 5 comentarios y cortaba cada uno a
-  // 220 caracteres, sin decirlo. Como las propuestas van primero, las
-  // observaciones nunca alcanzaban a salir: se perdía la evidencia más fuerte.
-  // Ahora van completos y separados por origen.
-  const grupos = [
-    { titulo: 'Propuestas de mejora del personal', textos: _propuestas },
-    { titulo: 'Observaciones del personal',        textos: _observaciones }
-  ].filter(g => g.textos.length > 0);
-
-  function vinieta(numero, texto) {
-    const estilo = function() { doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(44,42,40); };
-    const lines = (function() { estilo(); return doc.splitTextToSize(t(texto), W - M*2 - 8); })();
-    if (y + 9 > 275) { newPage(); }
-    doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-    doc.text(numero + '.', M, y);
-    estilo();
-    lines.forEach(function(linea) {
-      if (y + 4.8 > 275) { newPage(); estilo(); }
-      doc.text(linea, M + 8, y);
-      y += 4.8;
-    });
-    y += 3;
-  }
-
-  if (grupos.length > 0) {
-    grupos.forEach(function(g) {
-      checkY(10);
-      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-      doc.text(t(g.titulo + ' (' + g.textos.length + ')'), M, y); y += 5;
-      doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-      g.textos.forEach(function(txt, i) { vinieta(i + 1, txt); });
-      y += 2;
-    });
+  subtitulo('Dimensiones con menor calificación');
+  const bajasTodas = critDims.concat(warnDims);
+  const bajas = [];
+  let cupoD = y;
+  bajasTodas.forEach(function(d) {
+    const alto = altoFila(d.label);
+    if (cupoD + alto > PIE - 8) return;    // 8 mm para la nota de cierre
+    cupoD += alto;
+    bajas.push(d);
+  });
+  if (bajas.length > 0) {
+    bajas.forEach(function(d) { filaCompacta(d.label, d.avg.toFixed(2), colorDe(d.avg)); });
+    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    const nota = bajas.length < bajasTodas.length
+      ? 'Se listan las ' + bajas.length + ' dimensiones más bajas de ' + bajasTodas.length + ' que se ubican por debajo de 3.0. El detalle completo está en la versión Word.'
+      : (goodDims.length > 0 ? 'Las otras ' + goodDims.length + ' dimensiones evaluadas se ubican en 3.0 o más.' : '');
+    if (nota) { doc.text(t(nota), M+2, y); y += 4; }
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
   } else {
-    const hallazgos = [];
-    if (critAreasTodas.length > 0) hallazgos.push('Se detectaron ' + critAreasTodas.length + ' área(s) con score crítico que requieren intervención inmediata.');
-    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label).join(' / '));
-    const _allV = DATA.flatMap(d => (QUESTIONS||[]).map(q=>d[q.key])).filter(v=>v>=1&&v<=4);
-    const _negPct = _allV.length > 0 ? Math.round(_allV.filter(v=>v<=2).length/_allV.length*100) : 0;
-    if (_negPct >= 40) hallazgos.push('El ' + _negPct + '% de respuestas negativas indica áreas de mejora urgente.');
-    if (hallazgos.length === 0) hallazgos.push('No se recibieron comentarios abiertos. Score global ' + global.toFixed(2) + '/4.0. Se recomienda complementar con entrevistas cualitativas.');
-    hallazgos.forEach(function(h, i) { vinieta(i + 1, h); });
+    doc.setFontSize(8); doc.setTextColor(...GREEN);
+    doc.text(t('Ninguna dimensión se ubica por debajo de 3.0.'), M+2, y);
+    doc.setTextColor(...TXT);
+    y += 5;
   }
 
-  // ══ CONCLUSIÓN ══
-  sectionTitle('6. Conclusión y Recomendaciones — Monitoreo COSO');
+  // ── PÁGINA 2 ──────────────────────────────────────────────────
+  newPage();
 
-  const conclusion = `Los resultados de esta evaluación configuran un escenario de riesgo ${global<2.3?'ALTO':global<3?'MODERADO':'BAJO'} para la continuidad operativa y la retención del talento. Con ${totalAlerts} alertas críticas activas, un score global de ${global.toFixed(2)}/4.0 y ${negativePct}% de respuestas negativas, se requiere que la Dirección General impulse un plan de acción estructurado bajo los principios del Marco COSO.`;
-  paragraph(conclusion);
+  tituloBloque('Lo que dice el personal');
 
-  y += 2;
-  const prioridades = [
-    { nivel: 'PRIORIDAD ALTA', color: RED, items: [
-      'Programa de desarrollo de competencias para mandos medios (liderazgo, comunicación asertiva, gestión de equipos).',
-      'Revisión y aplicación consistente del organigrama y políticas internas, sin excepciones.',
-      critAreas.length>0 ? 'Diagnóstico cualitativo en áreas críticas: ' + critAreas.map(a=>a.area).join(', ') + '.' : null,
-    ].filter(Boolean)},
-    { nivel: 'PRIORIDAD MEDIA', color: AMBER, items: [
-      warnAreas.length > 0 ? 'Áreas en atención (' + warnAreas.map(a=>t(a.area)).join(', ') + '): implementar plan de mejora con seguimiento mensual.' : null,
-      // Antes esto cortaba la pregunta a 40 caracteres y quedaba a media frase,
-      // arrastrando el signo de apertura. Ahora va una recomendación por dimensión
-      // con el texto completo.
-      ...warnDims.map(d => 'Reforzar la dimensión en atención: ' + t(d.label) + ' (' + d.avg.toFixed(2) + ').'),
-      'Establecer canales de retroalimentación estructurados entre áreas.',
-      'Documentar procesos y criterios de asignación de actividades.',
-    ].filter(Boolean)},
-    { nivel: 'MONITOREO CONTINUO', color: NAVY, items: [
-      'Programar segunda medición de clima laboral en un plazo no mayor a 6 meses.',
-      'Comunicar resultados y planes de mejora a todo el personal de manera transparente.',
-      'Reconocer públicamente las áreas y prácticas que muestran fortalezas identificadas.',
-    ]},
-  ];
-
-  prioridades.forEach(p => {
-    checkY(14);
-    doc.setFillColor(...p.color);
-    doc.rect(M, y, W-M*2, 6, 'F');
-    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-    doc.text(p.nivel, M+3, y+4.2);
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    y += 8;
-    p.items.forEach(item => {
-      const estilo = function() { doc.setFontSize(8.5); doc.setFont('helvetica','normal'); };
-      estilo();
-      const lines = doc.splitTextToSize(item, W-M*2-8);
-      if (y + 9 > 275) { newPage(); estilo(); }
-      doc.setTextColor(...NAVY);
-      doc.text('•', M+2, y);
-      doc.setTextColor(44,42,40);
-      lines.forEach(function(linea) {
-        if (y + 4.8 > 275) { newPage(); estilo(); doc.setTextColor(44,42,40); }
-        doc.text(linea, M+7, y);
-        y += 4.8;
-      });
-      y += 2;
+  // Voces con su área, salvo cuando el área es tan chica que identificaría
+  // a quien escribió. Mismo criterio que la sección de áreas.
+  const voces = [];
+  DATA.forEach(function(d) {
+    const areaObj = areas.filter(function(a) { return a.area === d.area; })[0];
+    const areaVisible = (areaObj && areaObj.count >= MIN_ANONIMATO) ? d.area : null;
+    [['Propuesta de mejora', d.propuesta], ['Observación', d.observaciones]].forEach(function(par) {
+      const txt = String(par[1] || '').trim();
+      if (txt.length > 10 && txt.toLowerCase() !== 'na') {
+        voces.push({ tipo: par[0], area: areaVisible, texto: txt });
+      }
     });
-    y += 3;
   });
 
-  // ══ FIRMA ══
-  checkY(30);
-  y += 5;
+  const RESERVA = 132;          // mm que se apartan para conclusión, acciones y pie
+  const topeVoces = PIE - RESERVA;
+  let incluidas = 0;
+
+  for (let vi = 0; vi < voces.length; vi++) {
+    const v = voces[vi];
+    const recortado = v.texto.length > 300
+      ? v.texto.slice(0, 300).replace(/\s+\S*$/, '') + '…'
+      : v.texto;
+    const cita = '“' + recortado + '”';
+    doc.setFontSize(8.2); doc.setFont('helvetica','italic');
+    const lineas = doc.splitTextToSize(t(cita), W-M*2-9);
+    const alto = 4 + lineas.length*4.4 + 4;
+    if (y + alto > topeVoces) break;
+
+    doc.setFillColor(...LIGHT);
+    doc.rect(M, y-3, 1.3, alto-3, 'F');
+    doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
+    doc.text(t((v.tipo + (v.area ? ' · ' + v.area : '')).toUpperCase()), M+5, y);
+    y += 4;
+    doc.setFontSize(8.2); doc.setFont('helvetica','italic'); doc.setTextColor(...TXT);
+    lineas.forEach(function(l) { doc.text(l, M+5, y); y += 4.4; });
+    doc.setFont('helvetica','normal');
+    y += 4;
+    incluidas++;
+  }
+
+  if (incluidas < voces.length) {
+    doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    doc.splitTextToSize(t('Se transcriben ' + incluidas + ' de ' + voces.length + ' comentarios recibidos. Los ' +
+      (voces.length - incluidas) + ' restantes se incluyen íntegros en la versión Word de este informe.'),
+      W-M*2).forEach(function(l) { doc.text(l, M, y); y += 3.6; });
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += 2;
+  }
+  y += 4;
+
+  // ── PÁGINA 2 · CONCLUSIÓN ─────────────────────────────────────
+  tituloBloque('Conclusión');
+  const nivelRiesgo = global < 2.3 ? 'ALTO' : global < 3 ? 'MODERADO' : 'BAJO';
+  const conclusionTexto = 'El clima laboral de ' + companyName + ' configura un escenario de riesgo ' + nivelRiesgo +
+    ' para la continuidad operativa y la retención del talento. ' +
+    (totalAlerts > 0
+      ? 'Con ' + totalAlerts + ' alerta(s) crítica(s) activa(s) y '
+      : 'Sin alertas críticas activas y con ') +
+    negativePct + '% de respuestas en niveles negativos, corresponde a la Dirección General instruir un plan de acción con responsable y fecha compromiso por cada punto señalado, y verificar su avance con una segunda medición.';
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+  doc.splitTextToSize(t(conclusionTexto), W-M*2).forEach(function(l) { doc.text(l, M, y); y += 5; });
+  y += 6;
+
+  // ── PÁGINA 2 · ACCIONES ───────────────────────────────────────
+  tituloBloque('Acciones recomendadas');
+  const acciones = [];
+  if (critAreasTodas.length > 0) {
+    acciones.push(['Inmediata', 'Intervenir ' + (critAreasTodas.length===1?'el área':'las '+critAreasTodas.length+' áreas') +
+      ' con calificación crítica mediante entrevistas dirigidas y plan de acción con responsable y fecha.']);
+  }
+  if (bajas.length > 0) {
+    acciones.push(['Inmediata', 'Atender la dimensión peor calificada: ' + bajas[0].label + ' (' + bajas[0].avg.toFixed(2) + ').']);
+  }
+  acciones.push(['Alta', 'Formalizar y difundir el organigrama y las descripciones de puesto, con límites claros de responsabilidad por área.']);
+  acciones.push(['Alta', 'Establecer un programa de desarrollo para mandos medios en liderazgo, comunicación y asignación de cargas de trabajo.']);
+  acciones.push(['Media', 'Comunicar los resultados al personal y publicar el plan de mejora comprometido, con avances visibles.']);
+  acciones.push(['Media', 'Repetir la medición en un plazo no mayor a seis meses para verificar el efecto de las acciones.']);
+
+  acciones.slice(0, 6).forEach(function(a) {
+    const cChip = a[0]==='Inmediata' ? RED : a[0]==='Alta' ? AMBER : NAVY;
+    doc.setFillColor(...cChip); doc.rect(M, y-3.2, 19, 4.8, 'F');
+    doc.setFontSize(5.8); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+    doc.text(t(a[0].toUpperCase()), M+9.5, y, {align:'center'});
+    doc.setFontSize(8.4); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    const lineas = doc.splitTextToSize(t(a[1]), W-M*2-23);
+    lineas.forEach(function(l, i) { doc.text(l, M+22, y + i*4.4); });
+    y += Math.max(lineas.length*4.4, 4.8) + 2.6;
+  });
+
+  // ── PIE DE CIERRE ─────────────────────────────────────────────
+  y = Math.max(y + 6, 262);
   doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
-  doc.line(M, y, W-M, y); y += 8;
-  doc.setFontSize(7.5); doc.setTextColor(...GRAY);
-  doc.text('Elaborado con base en ' + DATA.length + ' respuestas cuantitativas de ' + getAreas().length + ' áreas' +
-    (_plantilla ? ' sobre una plantilla de ' + _plantilla + ' personas' : '') + ' · Sistema ClimaIQ · ' + fechaHoy, W/2, y, {align:'center'});
-  y += 4;
-  doc.text('Metodología: Marco de Control Interno COSO · Escala de evaluación: 1 (Nunca) a 4 (Siempre)', W/2, y, {align:'center'});
-  y += 4;
-  doc.text('Este informe es de carácter estrictamente confidencial y de uso exclusivo de la Dirección General.', W/2, y, {align:'center'});
+  doc.line(M, y, W-M, y);
+  y += 5;
+  centrado('Base: ' + DATA.length + ' respuestas de ' + getAreas().length + ' áreas' +
+    (_plantilla ? ' sobre una plantilla de ' + _plantilla + ' personas' : '') +
+    ' · Marco de Control Interno COSO · ' + fechaHoy, 7, GRAY);
+  centrado('Documento confidencial de uso exclusivo de la Dirección General. La evidencia cualitativa completa se anexa en la versión Word.', 7, GRAY);
+  doc.setTextColor(0,0,0);
 
   // Save
   const filename = 'Informe_Clima_Laboral_' + companyName.replace(/\\s+/g,'_') + '_' + new Date().toISOString().split('T')[0] + '.pdf';
