@@ -211,6 +211,28 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
 .dist-row { display:flex; height:28px; width:100%; overflow:hidden; border-radius:2px; gap:1px; }
 .dist-seg { display:flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:700; color:#fff; transition:flex .8s ease; }
 
+/* ── TOOLTIPS ── */
+.tip { position:fixed; z-index:9999; max-width:340px; background:#16283F; color:#fff; font-size:.72rem; line-height:1.55;
+  padding:.65rem .8rem; border-radius:4px; box-shadow:0 8px 28px rgba(11,31,58,.35); pointer-events:none;
+  opacity:0; transform:translateY(3px); transition:opacity .12s, transform .12s; }
+.tip.show { opacity:1; transform:translateY(0); }
+.tip-t { display:block; font-weight:600; color:#E6C77E; margin-bottom:.35rem; }
+.tip-n { color:#fff; font-weight:700; }
+.tip-h { display:block; margin-top:.45rem; font-size:.64rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.45); }
+.tip-l { display:block; color:rgba(255,255,255,.82); }
+[data-tip] { cursor:help; }
+
+/* ── CONCLUSIÓN DEL INDICADOR ── */
+.concl { margin-top:1.1rem; padding-top:1rem; border-top:1px solid var(--border); }
+.concl-h { display:flex; align-items:center; justify-content:space-between; gap:.8rem; margin-bottom:.5rem; }
+.concl-t { font-size:.6rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); }
+.concl-txt { font-size:.79rem; line-height:1.72; color:var(--ink2); }
+.concl-txt b { color:var(--ink); font-weight:600; }
+.btn-ia { font-family:inherit; font-size:.63rem; font-weight:600; letter-spacing:.04em; padding:.3rem .65rem; cursor:pointer;
+  background:transparent; color:var(--navy); border:1px solid var(--border); border-radius:3px; transition:all .15s; white-space:nowrap; }
+.btn-ia:hover:not(:disabled) { background:var(--navy); color:#fff; border-color:var(--navy); }
+.btn-ia:disabled { opacity:.5; cursor:default; }
+
 /* ── RESPONSIVE ── */
 @media(max-width:1100px) { .kpi-row { grid-template-columns:repeat(3,1fr); } }
 /* ── SIDEBAR MOBILE OVERLAY ── */
@@ -607,6 +629,313 @@ function r2(n) { return n===null?null:Math.round(n*100)/100; }
 function pillClass(s) { return s>=3?'pill-hi':s>=2.3?'pill-md':'pill-lo'; }
 function barColor(s) { return s>=3?'#1A5C3A':s>=2.3?'#8A5210':'#8B2A1F'; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══════════════════════════════════════════════════════════════
+// TOOLTIPS — un solo globo para todo el dashboard
+// Cualquier elemento con data-tip lo muestra. Se usa delegación en
+// document para que funcione con todo lo que se dibuja después.
+// ═══════════════════════════════════════════════════════════════
+const ESCALA = ['Nunca', 'Pocas veces', 'Frecuentemente', 'Siempre'];
+let TIP = null, TIP_FIJO = null;
+
+function tipNodo() {
+  if (!TIP) { TIP = document.createElement('div'); TIP.className = 'tip'; document.body.appendChild(TIP); }
+  return TIP;
+}
+function tipMostrar(html, x, y) {
+  const el = tipNodo();
+  el.innerHTML = html;
+  el.classList.add('show');
+  tipColocar(x, y);
+}
+function tipColocar(x, y) {
+  const el = tipNodo(), r = el.getBoundingClientRect();
+  let px = x + 14, py = y + 16;
+  if (px + r.width  > window.innerWidth  - 8) px = Math.max(8, x - r.width - 14);
+  if (py + r.height > window.innerHeight - 8) py = Math.max(8, y - r.height - 14);
+  el.style.left = px + 'px';
+  el.style.top  = py + 'px';
+}
+function tipOcultar() { if (TIP) TIP.classList.remove('show'); TIP_FIJO = null; }
+
+document.addEventListener('mouseover', function(e) {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (el) tipMostrar(el.getAttribute('data-tip'), e.clientX, e.clientY);
+});
+document.addEventListener('mousemove', function(e) {
+  if (TIP && TIP.classList.contains('show') && !TIP_FIJO) tipColocar(e.clientX, e.clientY);
+});
+document.addEventListener('mouseout', function(e) {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (el && !TIP_FIJO) tipOcultar();
+});
+// En celular no hay cursor: se toca para fijar el globo y se vuelve a tocar para quitarlo
+document.addEventListener('click', function(e) {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (!el) { tipOcultar(); return; }
+  if (TIP_FIJO === el) { tipOcultar(); return; }
+  TIP_FIJO = el;
+  const r = el.getBoundingClientRect();
+  tipMostrar(el.getAttribute('data-tip'), r.left + r.width/2, r.bottom - 8);
+});
+window.addEventListener('scroll', tipOcultar, true);
+
+// Empaqueta HTML para meterlo en el atributo data-tip
+function atr(html) { return String(html).replace(/"/g, '&quot;'); }
+function tipLinea(txt) { return '<span class="tip-l">' + txt + '</span>'; }
+function tipEncabezado(txt) { return '<span class="tip-h">' + txt + '</span>'; }
+
+// Reparto 1-2-3-4 de una lista de valores
+function repartoDe(valores) {
+  return [1,2,3,4].map(v => valores.filter(x => parseInt(x) === v).length);
+}
+function repartoTexto(rep) {
+  const total = rep.reduce((a,b) => a+b, 0);
+  if (!total) return 'Sin respuestas';
+  return rep.map((n,i) => n > 0 ? n + ' ' + ESCALA[i] : null).filter(Boolean).join(' · ');
+}
+
+// ── Contenido: un tramo de la barra de distribución ──
+function tipValorEscala(v, n, total) {
+  const pct = total > 0 ? Math.round(n/total*100) : 0;
+  let h = '<span class="tip-t">' + v + ' — ' + ESCALA[v-1] + '</span>';
+  h += '<span class="tip-n">' + n + '</span> de ' + total + ' respuestas (' + pct + '%)';
+
+  const porPregunta = QUESTIONS.map(q => ({
+    label: q.label,
+    n: DATA.filter(r => parseInt(r[q.key]) === v).length
+  })).filter(x => x.n > 0).sort((a,b) => b.n - a.n);
+
+  if (porPregunta.length) {
+    h += tipEncabezado('Dónde se concentra');
+    porPregunta.slice(0,3).forEach(function(x) {
+      h += tipLinea('· ' + esc(sf(x.label, 62)) + ' <span class="tip-n">(' + x.n + ')</span>');
+    });
+    if (porPregunta.length > 3) h += tipLinea('· y ' + (porPregunta.length-3) + ' pregunta(s) más');
+  }
+
+  const porArea = getAreas().map(function(a) {
+    const filas = DATA.filter(r => String(r.area||'') === a);
+    return { area: a, n: filas.reduce((s,r) => s + QUESTIONS.filter(q => parseInt(r[q.key]) === v).length, 0) };
+  }).filter(x => x.n > 0).sort((a,b) => b.n - a.n);
+
+  if (porArea.length) {
+    h += tipEncabezado('Por área');
+    h += tipLinea(porArea.map(x => esc(x.area) + ' <span class="tip-n">(' + x.n + ')</span>').join(' · '));
+  }
+  return h;
+}
+
+// ── Contenido: una dimensión (pregunta) ──
+function tipDimension(d) {
+  const valores = DATA.map(r => r[d.key]).filter(v => parseInt(v) >= 1 && parseInt(v) <= 4);
+  const rep = repartoDe(valores);
+  let h = '<span class="tip-t">' + esc(d.label) + '</span>';
+  h += 'Promedio <span class="tip-n">' + d.avg.toFixed(2) + '</span> de 4.0 · ' + valores.length + ' respuestas';
+  h += tipEncabezado('Cómo se reparte');
+  h += tipLinea(repartoTexto(rep));
+
+  const porArea = getAreas().map(function(a) {
+    const vals = DATA.filter(r => String(r.area||'') === a).map(r => r[d.key]).filter(v => parseInt(v)>=1 && parseInt(v)<=4);
+    return { area: a, avg: vals.length ? r2(vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length) : null, n: vals.length };
+  }).filter(x => x.avg !== null).sort((a,b) => a.avg - b.avg);
+
+  if (porArea.length) {
+    h += tipEncabezado('Por área, de menor a mayor');
+    h += tipLinea(porArea.map(x => esc(x.area) + ' <span class="tip-n">' + x.avg.toFixed(2) + '</span>').join(' · '));
+  }
+  return h;
+}
+
+// ── Contenido: un área ──
+function tipArea(a) {
+  const filas = DATA.filter(r => String(r.area||'') === a.area);
+  const valores = filas.flatMap(r => QUESTIONS.map(q => r[q.key])).filter(v => parseInt(v)>=1 && parseInt(v)<=4);
+  const rep = repartoDe(valores);
+  let h = '<span class="tip-t">' + esc(a.area) + '</span>';
+  h += 'Promedio <span class="tip-n">' + a.overall.toFixed(2) + '</span> de 4.0 · ' + a.count +
+       (a.count === 1 ? ' participante' : ' participantes') + ' · ' + valores.length + ' respuestas';
+  h += tipEncabezado('Cómo se reparte');
+  h += tipLinea(repartoTexto(rep));
+
+  const porDim = QUESTIONS.map(function(q, i) {
+    return { label: q.label, avg: a.dimScores[i] };
+  }).filter(x => x.avg !== null).sort((x,z) => x.avg - z.avg);
+
+  if (porDim.length) {
+    h += tipEncabezado('Lo peor y lo mejor de esta área');
+    h += tipLinea('▼ ' + esc(sf(porDim[0].label, 58)) + ' <span class="tip-n">' + r2(porDim[0].avg).toFixed(2) + '</span>');
+    const mejor = porDim[porDim.length-1];
+    if (porDim.length > 1) h += tipLinea('▲ ' + esc(sf(mejor.label, 58)) + ' <span class="tip-n">' + r2(mejor.avg).toFixed(2) + '</span>');
+  }
+  if (a.count < 3) {
+    h += tipEncabezado('Nota');
+    h += tipLinea('Con menos de 3 respuestas este resultado no se desglosa por nombre en el informe.');
+  }
+  return h;
+}
+
+// ── Contenido: cruce de área y dimensión (celda de la tabla) ──
+function tipCelda(a, d) {
+  const vals = DATA.filter(r => String(r.area||'') === a.area).map(r => r[d.key]).filter(v => parseInt(v)>=1 && parseInt(v)<=4);
+  const rep = repartoDe(vals);
+  const prom = vals.length ? r2(vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length) : null;
+  let h = '<span class="tip-t">' + esc(a.area) + '</span>';
+  h += esc(d.label);
+  h += tipEncabezado('Resultado');
+  h += tipLinea('Promedio <span class="tip-n">' + (prom !== null ? prom.toFixed(2) : '—') + '</span> de 4.0 sobre ' + vals.length + ' respuesta(s)');
+  h += tipEncabezado('Cómo se reparte');
+  h += tipLinea(repartoTexto(rep));
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONCLUSIÓN DEL INDICADOR GLOBAL — por qué esa calificación
+// Se calcula en el navegador: sale al instante y no depende de la
+// llave de API. El botón permite que el modelo la reescriba.
+// ═══════════════════════════════════════════════════════════════
+function bloqueConclusion(global, dist, total, dims, areas) {
+  window._conclCtx = { global, dist, total, dims, areas };
+  return `
+    <div class="concl">
+      <div class="concl-h">
+        <div class="concl-t">Por qué ${global.toFixed(2)}</div>
+        <button class="btn-ia" id="btnConclIA" onclick="reescribirConclusionIA()">✦ Redactar con IA</button>
+      </div>
+      <div class="concl-txt" id="conclTxt">${textoConclusion(global, dist, total, dims, areas)}</div>
+    </div>`;
+}
+
+function textoConclusion(global, dist, total, dims, areas) {
+  if (!total || !dims.length) return 'Todavía no hay respuestas suficientes para concluir.';
+  const frases = [];
+
+  // De dónde sale el número
+  frases.push('El <b>' + global.toFixed(2) + '</b> no es una opinión: es el promedio de las ' + dims.length +
+    ' dimensiones evaluadas, construido sobre <b>' + total + '</b> respuestas de ' +
+    DATA.length + (DATA.length === 1 ? ' persona' : ' personas') + '.');
+
+  // Qué forma tiene la distribución
+  const iMax = dist.indexOf(Math.max.apply(null, dist));
+  const pctMax = Math.round(dist[iMax]/total*100);
+  const neg = Math.round((dist[0]+dist[1])/total*100);
+  frases.push('La respuesta que más se repite es <b>«' + ESCALA[iMax] + '»</b>, con ' + pctMax +
+    '% del total, y las dos respuestas negativas juntas suman <b>' + neg + '%</b>. ' +
+    (neg >= 50 ? 'Más de la mitad de lo que contestó el personal apunta a insatisfacción, y eso es lo que sostiene la calificación en ese nivel.'
+     : neg >= 30 ? 'No son mayoría, pero son demasiadas para tratarlas como casos aislados.'
+     : 'El grueso de las respuestas se ubica en terreno favorable.'));
+
+  // Qué la jala hacia abajo
+  const bajas = dims.filter(d => d.avg < global).sort((a,b) => a.avg - b.avg);
+  if (bajas.length) {
+    const peor = bajas[0];
+    frases.push('Lo que empuja el indicador hacia abajo son <b>' + bajas.length + '</b> ' +
+      (bajas.length === 1 ? 'dimensión que se ubica' : 'dimensiones que se ubican') + ' por debajo del promedio. La más baja es <b>' +
+      esc(sf(peor.label, 95)) + '</b>, con ' + peor.avg.toFixed(2) + ', esto es ' +
+      (global - peor.avg).toFixed(2) + ' puntos por debajo del global.');
+  }
+
+  // Dónde se concentra
+  const ordenadas = areas.slice().sort((a,b) => a.overall - b.overall);
+  if (ordenadas.length > 1) {
+    const pa = ordenadas[0];
+    frases.push('Por área, <b>' + esc(pa.area) + '</b> registra la calificación más baja con ' + pa.overall.toFixed(2) +
+      (pa.count < 3 ? ', aunque sobre apenas ' + pa.count + (pa.count === 1 ? ' respuesta, por lo que conviene leerla con reserva' : ' respuestas, por lo que conviene leerla con reserva') : '') + '.');
+  }
+
+  // La palanca más corta: qué pasaría si las más bajas llegaran a 3.0
+  const tresBajas = dims.slice().sort((a,b) => a.avg - b.avg).slice(0,3).filter(d => d.avg < 3);
+  if (tresBajas.length) {
+    const claves = tresBajas.map(d => d.key);
+    const simulado = dims.map(d => claves.indexOf(d.key) >= 0 ? 3 : d.avg);
+    const nuevo = simulado.reduce((a,b) => a+b, 0) / simulado.length;
+    if (nuevo - global >= 0.05) {
+      frases.push('Si esas ' + (tresBajas.length === 1 ? 'dimensión alcanzara' : tresBajas.length + ' dimensiones alcanzaran') +
+        ' un 3.0, el indicador global subiría a <b>' + nuevo.toFixed(2) + '</b>. Ahí está la palanca más corta.');
+    }
+  }
+
+  // Prudencia con muestras chicas
+  if (DATA.length < 5) {
+    frases.push('<b>Con ' + DATA.length + (DATA.length === 1 ? ' respuesta' : ' respuestas') +
+      ', estas cifras son indicativas y no concluyentes:</b> conviene esperar a cerrar la encuesta antes de sostener conclusiones ante la Dirección.');
+  }
+
+  return frases.join(' ');
+}
+
+async function reescribirConclusionIA() {
+  const btn = document.getElementById('btnConclIA');
+  const caja = document.getElementById('conclTxt');
+  const ctx = window._conclCtx;
+  if (!btn || !caja || !ctx) return;
+
+  const apiKey = localStorage.getItem('climaiq_anthropic_key') || '';
+  if (!apiKey) {
+    alert('No hay API key de Anthropic guardada en este navegador.\n\nAbre ⚙ Configuración y pega tu llave para usar esta función.\n\nLa conclusión que ya está en pantalla se calcula sin llave y no necesita nada.');
+    return;
+  }
+
+  const original = btn.innerHTML;
+  btn.innerHTML = 'Redactando...'; btn.disabled = true;
+
+  try {
+    const bajas = ctx.dims.slice().sort((a,b) => a.avg - b.avg).slice(0,4);
+    const areasOrd = ctx.areas.slice().sort((a,b) => a.overall - b.overall);
+    const prompt = 'Eres un auditor interno senior. Explica en un solo párrafo de máximo 110 palabras POR QUÉ la calificación ' +
+      'global de clima laboral es ' + ctx.global.toFixed(2) + ' de 4.0. No repitas la cifra más de una vez ni enumeres datos: ' +
+      'explica qué la produce y qué significa para la organización.\n\n' +
+      'Datos:\n' +
+      '- Calificación global: ' + ctx.global.toFixed(2) + '/4.0 (promedio de ' + ctx.dims.length + ' dimensiones)\n' +
+      '- Base: ' + ctx.total + ' respuestas de ' + DATA.length + ' personas en ' + ctx.areas.length + ' áreas\n' +
+      '- Reparto de respuestas: ' + [0,1,2,3].map(i => ESCALA[i] + ' ' + Math.round(ctx.dist[i]/ctx.total*100) + '%').join(', ') + '\n' +
+      '- Dimensiones peor calificadas: ' + bajas.map(d => d.label + ' (' + d.avg.toFixed(2) + ')').join(' | ') + '\n' +
+      '- Áreas de menor a mayor: ' + areasOrd.map(a => a.area + ' ' + a.overall.toFixed(2) + ' con ' + a.count + ' participante(s)').join(' | ') + '\n\n' +
+      'Tono ejecutivo, directo y elocuente, en voz activa, sin tecnicismos ni relleno. Con acentos correctos. Sin markdown, sin viñetas, sin títulos. Solo el párrafo.';
+
+    const cuerpo = {
+      model: 'claude-opus-5',
+      max_tokens: 4000,
+      output_config: { effort: 'medium' },
+      messages: [{ role: 'user', content: prompt }]
+    };
+    const cabeceras = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+
+    let res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: Object.assign({}, cabeceras, { 'anthropic-beta': 'server-side-fallback-2026-07-01' }),
+      body: JSON.stringify(Object.assign({}, cuerpo, { fallbacks: 'default' }))
+    });
+    if (!res.ok) {
+      res = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers: cabeceras, body: JSON.stringify(cuerpo) });
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error && data.error.message ? data.error.message : 'La API respondió ' + res.status + '.');
+    if (data.stop_reason === 'refusal') throw new Error('El modelo declinó redactar la conclusión.');
+
+    // Con pensamiento adaptativo el bloque [0] puede ser de razonamiento
+    const bloque = (data.content || []).find(function(b) { return b.type === 'text'; });
+    if (!bloque || !bloque.text.trim()) throw new Error('La respuesta llegó sin texto.');
+
+    caja.textContent = bloque.text.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' ').trim();
+    btn.innerHTML = '↺ Volver al cálculo';
+    btn.onclick = function() {
+      caja.innerHTML = textoConclusion(ctx.global, ctx.dist, ctx.total, ctx.dims, ctx.areas);
+      btn.innerHTML = original;
+      btn.onclick = reescribirConclusionIA;
+    };
+  } catch (err) {
+    alert('No se pudo redactar la conclusión con IA:\n\n' + (err && err.message ? err.message : err) +
+          '\n\nLa conclusión calculada sigue en pantalla.');
+    btn.innerHTML = original;
+  }
+  btn.disabled = false;
+}
 function participantes(n) { return n === 1 ? '1 participante' : n + ' participantes'; }
 // Plantilla de la empresa, capturada en Configuración. Se guarda por encuesta
 // porque cada empresa tiene su propio número de empleados.
@@ -755,13 +1084,14 @@ function renderOverview() {
                 ${[0,1,2,3].map((i,_)=>{
                   const pct = total>0?Math.round(dist[i]/total*100):0;
                   const colors=['#8B2A1F','#8A5210','#1A4A7A','#1A5C3A'];
-                  return pct>3?`<div class="dist-seg" style="flex:${pct};background:${colors[i]}">${pct}%</div>`:
-                    `<div class="dist-seg" style="flex:${Math.max(pct,1)};background:${colors[i]}"></div>`;
+                  const tip = atr(tipValorEscala(i+1, dist[i], total));
+                  return pct>3?`<div class="dist-seg" data-tip="${tip}" style="flex:${pct};background:${colors[i]}">${pct}%</div>`:
+                    `<div class="dist-seg" data-tip="${tip}" style="flex:${Math.max(pct,1)};background:${colors[i]}"></div>`;
                 }).join('')}
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin-top:.4rem;">
                 ${['#8B2A1F','#8A5210','#1A4A7A','#1A5C3A'].map((c,i)=>`
-                  <div style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:var(--ink2);">
+                  <div data-tip="${atr(tipValorEscala(i+1, dist[i], total))}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:var(--ink2);">
                     <div style="width:8px;height:8px;background:${c};border-radius:1px;flex-shrink:0;"></div>
                     ${i+1} — ${['Nunca','Pocas veces','Frecuentemente','Siempre'][i]}
                     <span style="color:var(--ink3)">(${total>0?Math.round(dist[i]/total*100):0}%)</span>
@@ -769,6 +1099,7 @@ function renderOverview() {
               </div>
             </div>
           </div>
+          ${bloqueConclusion(global, dist, total, dims, areas)}
         </div>
       </div>
 
@@ -783,13 +1114,13 @@ function renderOverview() {
         <div class="card-body">
           <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.5rem;">✓ FORTALEZAS</div>
           ${sorted.slice(0,3).map(d=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipDimension(d))}">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
           <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-top:.9rem;margin-bottom:.5rem;">✗ OPORTUNIDADES</div>
           ${sorted.slice(-3).reverse().map(d=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipDimension(d))}">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
             </div>`).join('')}
@@ -809,8 +1140,8 @@ function renderOverview() {
       <div class="card-body">
         <div class="hbar-list">
           ${areas.map(a=>`
-            <div class="hbar-row">
-              <div class="hbar-lbl" title="${esc(a.area)}">${esc(sf(a.area,14))}</div>
+            <div class="hbar-row" data-tip="${atr(tipArea(a))}">
+              <div class="hbar-lbl">${esc(sf(a.area,14))}</div>
               <div class="hbar-track">
                 <div class="hbar-fill" style="width:${(a.overall/4)*100}%;background:${barColor(a.overall)}">
                   <span class="hbar-val">${a.overall}</span>
@@ -843,9 +1174,9 @@ function renderDimensions() {
         <div class="card-body">
           <div class="dim-list">
             ${sorted.map(d=>`
-              <div class="dim-row">
+              <div class="dim-row" data-tip="${atr(tipDimension(d))}">
                 <div class="dim-info">
-                  <div class="dim-name" title="${esc(d.label)}">${esc(sf(d.label,90))}</div>
+                  <div class="dim-name">${esc(sf(d.label,90))}</div>
                   <div class="dim-track"><div class="dim-fill" style="width:${(d.avg/4)*100}%;background:${barColor(d.avg)}"></div></div>
                 </div>
                 <div class="dim-num" style="color:${barColor(d.avg)}">${d.avg.toFixed(2)}</div>
@@ -954,10 +1285,10 @@ function renderAreas() {
           <tbody>
             ${areas.map(a=>`
               <tr>
-                <td>${esc(a.area)}</td>
+                <td data-tip="${atr(tipArea(a))}">${esc(a.area)}</td>
                 <td style="text-align:center;color:var(--ink3)">${a.count}</td>
-                ${a.dimScores.map(s=>s!==null?`<td><span class="score-pill ${pillClass(r2(s))}">${r2(s).toFixed(1)}</span></td>`:'<td style="color:var(--ink3);font-size:.7rem">—</td>').join('')}
-                <td>
+                ${a.dimScores.map((s,si)=>s!==null?`<td data-tip="${atr(tipCelda(a, QUESTIONS[si]))}"><span class="score-pill ${pillClass(r2(s))}">${r2(s).toFixed(1)}</span></td>`:'<td style="color:var(--ink3);font-size:.7rem">—</td>').join('')}
+                <td data-tip="${atr(tipArea(a))}">
                   <div class="area-bar-wrap">
                     <span class="score-pill ${pillClass(a.overall)}" style="font-size:.92rem;font-weight:500;min-width:42px">${a.overall}</span>
                     <div class="area-bar-track"><div class="area-bar-fill" style="width:${(a.overall/4)*100}%;background:${barColor(a.overall)}"></div></div>
@@ -1084,7 +1415,7 @@ function renderAlerts() {
         <div class="alert-card crit">
           <div class="alert-lbl">🚨 Dimensiones Críticas (&lt; 2.3) — Intervención Inmediata</div>
           ${critDims.map(d=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipDimension(d))}">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--red)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
@@ -1099,7 +1430,7 @@ function renderAlerts() {
         <div class="alert-card crit">
           <div class="alert-lbl">🏢 Áreas Críticas (&lt; 2.3) — Diagnóstico Urgente</div>
           ${critAreas.map(a=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipArea(a))}">
               <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
               <div class="alert-item-score" style="color:var(--red)">${a.overall} <span style="font-size:.65rem;color:#999;">(${a.count} resp.)</span></div>
             </div>`).join('')}
@@ -1114,7 +1445,7 @@ function renderAlerts() {
         <div class="alert-card warn">
           <div class="alert-lbl">⚠ Dimensiones en Atención (2.3–3.0)</div>
           ${warnDims.map(d=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipDimension(d))}">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--amber)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
@@ -1125,7 +1456,7 @@ function renderAlerts() {
         <div class="alert-card warn">
           <div class="alert-lbl">⚠ Áreas en Atención (2.3–3.0)</div>
           ${warnAreas.map(a=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipArea(a))}">
               <div class="alert-item-name">${esc(a.area)} <span style="color:var(--ink3);font-size:.7rem">(${a.count} personas)</span></div>
               <div class="alert-item-score" style="color:var(--amber)">${a.overall} <span style="font-size:.65rem;color:#999;">(${a.count} resp.)</span></div>
             </div>`).join('')}
@@ -1136,7 +1467,7 @@ function renderAlerts() {
         <div class="alert-card good">
           <div class="alert-lbl">💪 Fortalezas del Equipo (≥ 3.0)</div>
           ${goodDims.slice(0,5).map(d=>`
-            <div class="alert-item">
+            <div class="alert-item" data-tip="${atr(tipDimension(d))}">
               <div class="alert-item-name">${esc(sf(d.label,90))}</div>
               <div class="alert-item-score" style="color:var(--green)">${d.avg.toFixed(2)} <span style="font-size:.65rem;color:#999;">(${d.count} resp.)</span></div>
             </div>`).join('')}
