@@ -943,11 +943,16 @@ function textoConclusion(global, dist, total, dims, areas) {
   const iMax = dist.indexOf(Math.max.apply(null, dist));
   const pctMax = Math.round(dist[iMax]/total*100);
   const neg = Math.round((dist[0]+dist[1])/total*100);
-  frases.push('La respuesta que más se repite es <b>«' + ESCALA[iMax] + '»</b>, con ' + pctMax +
-    '% del total, y las dos respuestas negativas juntas suman <b>' + neg + '%</b>. ' +
-    (neg >= 50 ? 'Más de la mitad de lo que contestó el personal apunta a insatisfacción, y eso es lo que sostiene la calificación en ese nivel.'
-     : neg >= 30 ? 'No son mayoría, pero son demasiadas para tratarlas como casos aislados.'
-     : 'El grueso de las respuestas se ubica en terreno favorable.'));
+  // Siempre el conteo con su base, nunca "la mayoría" ni "más de la mitad":
+  // sobre 56 respuestas, un 52% es una diferencia de dos, y decirlo con la
+  // cifra evita que el lector lea una tendencia donde hay un margen mínimo.
+  const negN = dist[0] + dist[1];
+  const posN = dist[2] + dist[3];
+  const dif = Math.abs(negN - posN);
+  frases.push('La respuesta que más se repite es <b>«' + ESCALA[iMax] + '»</b>, con <b>' + dist[iMax] +
+    ' de ' + total + '</b> (' + pctMax + '%). Las dos respuestas negativas suman <b>' + negN + ' de ' + total +
+    '</b> (' + neg + '%) y las positivas <b>' + posN + '</b>, una diferencia de <b>' + dif + '</b> ' +
+    (dif === 1 ? 'respuesta' : 'respuestas') + '.');
 
   // Qué la jala hacia abajo
   const bajas = dims.filter(d => d.avg < global).sort((a,b) => a.avg - b.avg);
@@ -1803,6 +1808,8 @@ El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo 
 
 Tono: ejecutivo, directo y elocuente, sin tecnicismos ni lenguaje inflado. Escribe en voz activa. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 135 palabras en un solo párrafo corrido.
 
+REGLA INNEGOCIABLE, DATOS DUROS: nunca escribas aproximaciones ni cuantificadores vagos. Quedan prohibidos "la mayoría", "más de la mitad", "buena parte", "varios", "algunos", "muchos", "pocos", "casi", "aproximadamente", "alrededor de", "cerca de", "en general", "por lo regular" y "de vez en cuando". Cada afirmación cuantitativa lleva su cifra exacta con la base sobre la que se calculó: se escribe "29 de 56 respuestas, 52%", no "la mayoría de las respuestas"; se escribe "3 de las 7 dimensiones", no "varias dimensiones". Si un dato no está en la lista de arriba, no lo cuantifiques: descríbelo sin número en lugar de estimarlo.
+
 Redacta además el PLAN DE ACCIÓN: entre 4 y 6 acciones para esta empresa en concreto. Reglas del plan:
 - Cada acción sale de lo que dicen estos datos y estos comentarios. Si una acción podría pegarse igual en el informe de cualquier otra empresa, no sirve: reescríbela.
 - Empieza con un verbo y dice qué se hace, no qué se atiende. "Atender la dimensión peor calificada" no es una acción, es repetir el hallazgo.
@@ -1930,8 +1937,12 @@ function generarInformePDF() {
   const global = validAvgs.length ? r2(validAvgs.reduce((a,b)=>a+b,0)/validAvgs.length) : 0;
   const allScores = DATA.flatMap(r=>QUESTIONS.map(q=>parseInt(r[q.key])).filter(v=>v>=1&&v<=4));
   const total = allScores.length;
-  const positivePct = total>0?Math.round(allScores.filter(v=>v>=3).length/total*100):0;
-  const negativePct = 100-positivePct;
+  // El conteo crudo, no solo el porcentaje: el informe habla con datos duros
+  // y "52%" sobre 56 respuestas es una diferencia de dos, no una tendencia.
+  const posCount = allScores.filter(v=>v>=3).length;
+  const negCount = total - posCount;
+  const positivePct = total>0?Math.round(posCount/total*100):0;
+  const negativePct = total>0?100-positivePct:0;
   const critDims = dims.filter(d=>d.avg!==null&&d.avg<2.3).sort((a,b)=>a.avg-b.avg);
   const warnDims = dims.filter(d=>d.avg!==null&&d.avg>=2.3&&d.avg<3).sort((a,b)=>a.avg-b.avg);
   const goodDims = dims.filter(d=>d.avg!==null&&d.avg>=3).sort((a,b)=>b.avg-a.avg);
@@ -2177,8 +2188,9 @@ function generarInformePDF() {
     (_plantilla
       ? 'La plantilla registrada es de ' + _plantilla + ' personas; con ' + DATA.length + ' respuestas, la participación es de ' + Math.round(DATA.length/_plantilla*100) + '%.'
       : 'No se capturó la plantilla de la empresa, así que este informe no reporta tasa de participación.') +
-    ' Las respuestas negativas ' + (negativePct > positivePct ? 'superan a las positivas' : 'no superan a las positivas') +
-    ', ' + negativePct + '% contra ' + positivePct + '%, sin punto neutro en la escala.');
+    ' Las respuestas negativas suman ' + negCount + ' de ' + total + ' (' + negativePct + '%) y las positivas ' +
+    posCount + ' (' + positivePct + '%), una diferencia de ' + Math.abs(negCount - posCount) +
+    (Math.abs(negCount - posCount) === 1 ? ' respuesta' : ' respuestas') + ', sin punto neutro en la escala.');
 
   // ── PÁGINA 1 · POR ÁREA Y POR DIMENSIÓN ───────────────────────
   // Las dos secciones se reparten lo que queda de la primera hoja. Antes las
@@ -2292,7 +2304,8 @@ function generarInformePDF() {
     (totalAlerts > 0
       ? 'Con ' + totalAlerts + (totalAlerts === 1 ? ' alerta crítica activa y ' : ' alertas críticas activas y ')
       : 'Sin alertas críticas activas y con ') +
-    negativePct + '% de respuestas en niveles negativos, enseguida se propone un plan de acción con responsable y fecha sugeridos para cada punto. Corresponde a la Dirección General confirmarlos o ajustarlos, y verificar su avance con una segunda medición.';
+    negCount + ' de ' + total + ' respuestas en niveles negativos (' + negativePct +
+    '%), enseguida se propone un plan de acción con responsable y fecha sugeridos para cada punto. Corresponde a la Dirección General confirmarlos o ajustarlos, y verificar su avance con una segunda medición.';
 
   // El plan lo redacta la misma llamada que escribe el resumen ejecutivo, con
   // responsable y fecha propuestos para cada punto: una acción sin dueño ni
