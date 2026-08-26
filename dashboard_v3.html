@@ -1739,14 +1739,13 @@ const t = s => String(s).replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/
 // ══════════════════════════════════════════════════════════════
 // GENERAR RESUMEN EJECUTIVO CON IA + PDF
 // ══════════════════════════════════════════════════════════════
-async function generarPDFconResumen() {
-  if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
-
-  // Mostrar estado de carga
-  const btnPDF = document.getElementById('btnPDF');
-  const originalText = btnPDF.innerHTML;
-  btnPDF.innerHTML = '⏳ Generando resumen...';
-  btnPDF.disabled = true;
+// Redacta el resumen ejecutivo y el plan de acción con la IA y los deja en
+// window._executiveSummary y window._planAccion. La usan los dos informes,
+// el PDF y el Word, para que digan exactamente lo mismo. Devuelve false solo
+// si el usuario decide no continuar tras un fallo.
+async function redactarResumenYPlan(btn) {
+  const textoOriginal = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '⏳ Generando resumen...'; btn.disabled = true; }
 
   let motivoFalla = '';
 
@@ -1906,21 +1905,24 @@ Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin explicaciones y s
     motivoFalla = err && err.message ? err.message : String(err);
   }
 
-  btnPDF.innerHTML = originalText;
-  btnPDF.disabled = false;
+  if (btn) { btn.innerHTML = textoOriginal; btn.disabled = false; }
 
-  // Antes esto se callaba y el PDF salía sin resumen sin avisar. El aviso
+  // Antes esto se callaba y el informe salía sin resumen sin avisar. El aviso
   // distingue entre quedarse sin nada y quedarse solo sin el plan redactado.
   if (motivoFalla) {
     const parcial = !!window._executiveSummary;
-    const seguir = confirm(
+    return confirm(
       (parcial ? 'El resumen ejecutivo sí se generó, pero hubo un problema:\n\n'
                : 'No se pudo generar el resumen ejecutivo con IA:\n\n') + motivoFalla +
-      '\n\n¿Genero el informe de todas formas? El resto del PDF sale completo.'
+      '\n\n¿Genero el informe de todas formas? El resto sale completo.'
     );
-    if (!seguir) return;
   }
+  return true;
+}
 
+async function generarPDFconResumen() {
+  if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
+  if (!(await redactarResumenYPlan(document.getElementById('btnPDF')))) return;
   generarInformePDF();
 }
 
@@ -2485,6 +2487,9 @@ function generarInformePDF() {
 // ═══════════════════════════════════════════════════════════════
 async function generarInformeWord() {
   if (!DATA || DATA.length === 0) { alert('No hay datos cargados'); return; }
+  // El Word usa el mismo resumen y el mismo plan que el PDF: son el mismo
+  // informe en dos formatos y no pueden decir cosas distintas.
+  if (!(await redactarResumenYPlan(document.getElementById('btnWord')))) return;
 
   const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
   // Obtener logo desde config del Panel Admin
@@ -2496,8 +2501,14 @@ async function generarInformeWord() {
   const areas   = getAreas();
   const dims    = getDims();
   const GLOBAL  = r2(avg(DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1 && v <= 4)));
-  const POS_PCT = Math.round(DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 3).length / DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1).length * 100);
-  const NEG_PCT = 100 - POS_PCT;
+  // Conteos crudos, no solo porcentajes: el informe habla con datos duros y
+  // un porcentaje sin su base no se puede verificar ni defender.
+  const TODAS_RESP = DATA.flatMap(d => QUESTIONS.map(q => d[q.key])).filter(v => v >= 1 && v <= 4);
+  const RESP_N  = TODAS_RESP.length;
+  const POS_N   = TODAS_RESP.filter(v => v >= 3).length;
+  const NEG_N   = RESP_N - POS_N;
+  const POS_PCT = RESP_N ? Math.round(POS_N / RESP_N * 100) : 0;
+  const NEG_PCT = RESP_N ? 100 - POS_PCT : 0;
   const areaData  = getAreaData();
   // Mismo criterio de confidencialidad que el PDF: no se desglosa por nombre
   // un área con menos de 3 respuestas, porque señalaría a quien contestó.
@@ -2520,30 +2531,63 @@ async function generarInformeWord() {
   const observaciones = DATA.map(d => d.observaciones||'').filter(t => t && t.length > 10 && t.toLowerCase().trim() !== 'na');
   let hallazgos = [];
   if (propuestas.length + observaciones.length === 0) {
-    if (critAreasTodas.length > 0) hallazgos.push('Se detectaron ' + critAreasTodas.length + ' área(s) con score crítico: requieren intervención inmediata.');
-    if (critDims.length > 0) hallazgos.push('Dimensiones críticas: ' + critDims.slice(0,2).map(d=>d.label).join(' / '));
-    if (NEG_PCT >= 40) hallazgos.push('El ' + NEG_PCT + '% de respuestas en niveles negativos (1-2) indica áreas de mejora urgente.');
-    if (hallazgos.length === 0) hallazgos.push('Score global: ' + GLOBAL.toFixed(2) + '/4.0. Se recomienda complementar con encuestas cualitativas.');
+    if (critAreasTodas.length > 0) hallazgos.push('Hay ' + (critAreasTodas.length === 1 ? '1 área' : critAreasTodas.length + ' áreas') + ' de ' + areaData.length + ' en nivel crítico, por debajo de 2.3.');
+    if (critDims.length > 0) hallazgos.push((critDims.length === 1 ? 'La dimensión' : 'Las ' + critDims.length + ' dimensiones') + ' en nivel crítico, de ' + dims.length + ': ' + critDims.map(d => d.label + ' (' + d.avg.toFixed(2) + ')').join('; ') + '.');
+    hallazgos.push(NEG_N + ' de ' + RESP_N + ' respuestas (' + NEG_PCT + '%) se ubican en los niveles negativos 1 y 2, contra ' + POS_N + ' (' + POS_PCT + '%) en los positivos 3 y 4.');
+    hallazgos.push('No se recibieron comentarios abiertos, así que este informe no aporta evidencia cualitativa sobre las causas.');
   }
 
-  // Diagnóstico
-  const diagnostico = GLOBAL >= 3
-    ? `El score global de ${GLOBAL.toFixed(2)}/4.0 refleja un clima laboral SATISFACTORIO. El ${POS_PCT}% de las respuestas se ubica en niveles positivos (3-4), indicando un entorno organizacional favorable.`
-    : GLOBAL >= 2.3
-    ? `El score global de ${GLOBAL.toFixed(2)}/4.0 indica un clima laboral en nivel MODERADO. El ${NEG_PCT}% de respuestas en niveles negativos requiere atención antes de convertirse en riesgos críticos.`
-    : `El score global de ${GLOBAL.toFixed(2)}/4.0 configura un escenario CRÍTICO. El ${NEG_PCT}% de respuestas en niveles negativos representa un riesgo organizacional significativo que compromete el Ambiente de Control COSO.`;
+  // Cuántas respuestas llegaron con nombre. La encuesta no es anónima:
+  // identificarse es opcional y además se capturan cargo y jefe inmediato.
+  const conNombre = DATA.filter(d => {
+    const n = String(d.nombre || '').trim();
+    return n && !/^an[oó]nimo$/i.test(n);
+  }).length;
 
-  const conclusion = `Los resultados configuran un escenario de riesgo ${GLOBAL < 2.3 ? 'ALTO' : GLOBAL < 3 ? 'MODERADO' : 'BAJO'} para la continuidad operativa. Con ${totalAlerts} alertas críticas, score global de ${GLOBAL.toFixed(2)}/4.0 y ${NEG_PCT}% de respuestas negativas, se requiere un plan de acción estructurado bajo el Marco COSO.`;
+  // Mismo plan que el PDF, con la misma reserva si la IA no lo redactó.
+  const planIA = (window._planAccion || []).filter(a => a && a.accion);
+  let acciones = planIA.map(a => {
+    const p = String(a.prioridad || '').toLowerCase();
+    return {
+      prioridad: p.indexOf('inmediat') === 0 ? 'Inmediata' : p.indexOf('alta') === 0 ? 'Alta' : 'Media',
+      accion: String(a.accion),
+      responsable: String(a.responsable || '').trim(),
+      fecha: String(a.fecha || '').trim()
+    };
+  });
+  if (!acciones.length) {
+    acciones = [
+      { prioridad:'Inmediata', accion:'Levantar un plan específico para la dimensión peor calificada, ' + (dims.slice().sort((a,b)=>a.avg-b.avg)[0] || {label:'—',avg:0}).label + ', con acuerdos verificables.', responsable:'', fecha:'' },
+      { prioridad:'Alta', accion:'Formalizar y difundir el organigrama y las descripciones de puesto, con límites claros de responsabilidad por área.', responsable:'', fecha:'' },
+      { prioridad:'Alta', accion:'Establecer un programa de desarrollo para mandos medios en liderazgo, comunicación y asignación de cargas de trabajo.', responsable:'', fecha:'' },
+      { prioridad:'Media', accion:'Comunicar los resultados al personal y publicar el plan de mejora comprometido, con avances visibles.', responsable:'', fecha:'' },
+      { prioridad:'Media', accion:'Repetir la medición en un plazo no mayor a seis meses para verificar el efecto de las acciones.', responsable:'', fecha:'' }
+    ];
+  }
+  const ordenPrioridad = { 'Inmediata':0, 'Alta':1, 'Media':2 };
+  acciones.sort((a, b) => ordenPrioridad[a.prioridad] - ordenPrioridad[b.prioridad]);
 
-  // Construir contenido del documento como HTML para convertir a DOCX via Blob
-  // Usamos un formato RTF simple que Word puede abrir directamente
+  // Diagnóstico y conclusión con la escala única del sistema y con la cifra
+  // exacta junto a su base, nunca con porcentajes sueltos ni aproximaciones.
+  const peorDim = dims.slice().sort((a,b) => a.avg - b.avg)[0];
+  const diagnostico = `El clima laboral califica ${GLOBAL.toFixed(2)} de 4.0, nivel ${scoreLabel.toUpperCase()} conforme a la escala de este informe. ` +
+    `De las ${RESP_N} respuestas de escala recibidas, ${NEG_N} (${NEG_PCT}%) se ubican en los niveles negativos 1 y 2, y ${POS_N} (${POS_PCT}%) en los positivos 3 y 4, sin punto neutro. ` +
+    (critDims.length > 0
+      ? `${critDims.length === 1 ? 'Una dimensión' : critDims.length + ' dimensiones'} de ${dims.length} ${critDims.length === 1 ? 'califica' : 'califican'} por debajo de 2.3: ${critDims.map(d => d.label + ' (' + d.avg.toFixed(2) + ')').join('; ')}. `
+      : `Ninguna de las ${dims.length} dimensiones califica por debajo de 2.3. `) +
+    (peorDim ? `La calificación más baja es ${peorDim.label} con ${peorDim.avg.toFixed(2)}.` : '');
+
+  const conclusion = `El clima laboral de ${companyName} se ubica en nivel ${scoreLabel.toUpperCase()} conforme a la escala de este informe. ` +
+    `Con ${totalAlerts === 1 ? '1 alerta crítica activa' : totalAlerts + ' alertas críticas activas'} y ${NEG_N} de ${RESP_N} respuestas en niveles negativos (${NEG_PCT}%), ` +
+    `se propone el plan de acción que sigue, con responsable y fecha sugeridos para cada punto. Corresponde a la Dirección General confirmarlos o ajustarlos, y verificar su avance con una segunda medición.`;
+
   const rtf = buildRTF({
     company: companyName, fecha: fechaHoy, logo: logoData,
-    total: DATA.length, totalAreas: areas.length,
-    GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
-    critAreas, warnAreas, goodAreas, critAreasTodas,
-    critDims, warnDims, goodDims,
-    hallazgos, diagnostico, conclusion,
+    total: DATA.length, totalAreas: areas.length, conNombre,
+    GLOBAL, POS_PCT, NEG_PCT, POS_N, NEG_N, RESP_N, scoreLabel, totalAlerts,
+    critAreas, warnAreas, goodAreas, critAreasTodas, areaData,
+    critDims, warnDims, goodDims, dims,
+    hallazgos, diagnostico, conclusion, acciones, planRedactado: planIA.length > 0,
     propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla: plantillaW
   });
 
@@ -2556,87 +2600,102 @@ async function generarInformeWord() {
   URL.revokeObjectURL(url);
 }
 
-function buildRTF({ company, fecha, logo, total, totalAreas, GLOBAL, POS_PCT, NEG_PCT, scoreLabel, totalAlerts,
-  critAreas, warnAreas, goodAreas, critAreasTodas, critDims, warnDims, goodDims, hallazgos, diagnostico, conclusion,
+function buildRTF({ company, fecha, logo, total, totalAreas, conNombre, GLOBAL, POS_PCT, NEG_PCT,
+  POS_N, NEG_N, RESP_N, scoreLabel, totalAlerts, critAreas, warnAreas, goodAreas, critAreasTodas, areaData,
+  critDims, warnDims, goodDims, dims, hallazgos, diagnostico, conclusion, acciones, planRedactado,
   propuestas, observaciones, areasReservadas, MIN_ANONIMATO, plantilla }) {
 
-  const sc = v => v >= 3 ? '1A5C3A' : v >= 2.3 ? '8A5210' : '8B2A1F';
   const lv = v => v >= 3 ? 'Satisfactorio' : v >= 2.3 ? 'Atención' : 'Crítico';
+  const sc = v => v >= 3 ? '1A5C3A' : v >= 2.3 ? '8A5210' : '8B2A1F';
   // Todo lo que escribió el personal se escapa antes de entrar al HTML: un
   // comentario con "<" se lo traga Word y el informe pierde texto sin avisar.
   // Los saltos de línea se conservan, porque hay respuestas de varios párrafos.
   const tx = s => esc(s).replace(/\r?\n/g, '<br>');
 
-  // Build HTML that Word can open as editable document
-  let html = `
+  const participacion = plantilla
+    ? total + ' de ' + plantilla + ' (' + Math.round(total / plantilla * 100) + '% de participación)'
+    : String(total);
+  // La encuesta NO es anónima: identificarse es opcional y además se capturan
+  // cargo y jefe inmediato. Se reporta el dato en lugar de afirmar la promesa.
+  const fraseIdentidad = conNombre === 0
+    ? 'Identificarse fue opcional y todas las respuestas llegaron sin nombre.'
+    : 'Identificarse fue opcional: ' + conNombre + ' de ' + total + ' respuestas llegaron con nombre.';
+
+  const areasOrdenadas = [...critAreas, ...warnAreas, ...goodAreas];
+  const dimsOrdenadas = dims.slice().sort((a, b) => a.avg - b.avg);
+  const chip = p => p === 'Inmediata' ? '8B2A1F' : p === 'Alta' ? '8A5210' : '1A2F4A';
+  const nComentarios = propuestas.length + observaciones.length;
+
+  return `
 <html xmlns:o='urn:schemas-microsoft-com:office:office'
       xmlns:w='urn:schemas-microsoft-com:office:word'
       xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
 <meta charset='utf-8'>
+<title>Informe de Clima Laboral · ${tx(company)}</title>
 <style>
-  body { font-family: Arial, sans-serif; font-size: 10pt; color: #2C2A28; margin: 2cm; }
-  h1 { font-size: 22pt; color: #1A2F4A; margin-bottom: 4pt; }
-  h2 { font-size: 13pt; color: #1A2F4A; border-bottom: 2px solid #E2DDD8; padding-bottom: 4pt; margin-top: 18pt; }
-  h3 { font-size: 11pt; color: #1A2F4A; margin-top: 12pt; }
-  p { text-align: justify; line-height: 1.6; margin: 6pt 0; }
-  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
-  th { background-color: #1A2F4A; color: white; padding: 6pt 8pt; font-size: 9pt; text-align: left; }
-  td { padding: 5pt 8pt; border: 1px solid #E2DDD8; font-size: 9pt; }
-  tr:nth-child(even) td { background-color: #F8F6F2; }
-  .kpi-table { width: 100%; }
-  .kpi-table td { text-align: center; border: 1px solid #E2DDD8; padding: 10pt; }
-  .kpi-value { font-size: 20pt; font-weight: bold; }
-  .kpi-label { font-size: 8pt; color: #9A9490; text-transform: uppercase; }
-  .section-box { background: #F0EDE8; border-left: 4px solid #1A2F4A; padding: 8pt 12pt; margin: 8pt 0; }
-  .critico { color: #8B2A1F; font-weight: bold; }
-  .atencion { color: #8A5210; font-weight: bold; }
-  .satisfactorio { color: #1A5C3A; font-weight: bold; }
-  .prio-alta { background: #8B2A1F; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
-  .prio-media { background: #8A5210; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
-  .prio-monitoreo { background: #1A2F4A; color: white; padding: 5pt 10pt; font-weight: bold; margin-top: 10pt; }
-  ul { margin: 4pt 0; padding-left: 18pt; }
-  li { margin: 4pt 0; text-align: justify; }
-  .confidencial { color: #8B2A1F; font-weight: bold; }
-  .firma-linea { border-top: 1px solid #9A9490; margin-top: 30pt; padding-top: 4pt; width: 45%; display: inline-block; }
+  @page { margin: 2cm; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #2C2A28; }
+  h1 { font-size: 20pt; color: #1A2F4A; margin: 0 0 2pt 0; }
+  h2 { font-size: 9pt; color: #1A2F4A; letter-spacing: 1.4pt; text-transform: uppercase;
+       margin: 20pt 0 6pt 0; padding: 0; border: none; }
+  h3 { font-size: 10.5pt; color: #1A2F4A; margin: 14pt 0 4pt 0; }
+  p  { text-align: justify; line-height: 1.5; margin: 5pt 0; }
+  .empresa { font-size: 12pt; font-weight: bold; color: #1A2F4A; margin: 0 0 3pt 0; }
+  .metodo  { font-size: 8pt; color: #7A736D; font-style: italic; margin: 0 0 2pt 0; text-align: left; }
+  .sello   { font-size: 8pt; color: #7A736D; margin: 0; text-align: left; }
+  .regla   { border-bottom: 2.5pt solid #1A2F4A; margin: 6pt 0 0 0; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+  th { background-color: #1A2F4A; color: #fff; padding: 5pt 7pt; font-size: 8.5pt; text-align: left; }
+  td { padding: 4pt 7pt; border: 0.5pt solid #E2DDD8; font-size: 9pt; }
+  tr:nth-child(even) td { background-color: #FAF9F6; }
+  .cifras td { text-align: center; padding: 8pt 4pt; border: 0.5pt solid #E2DDD8; }
+  .cifra    { font-size: 17pt; font-weight: bold; }
+  .cifra-et { font-size: 6.5pt; color: #7A736D; text-transform: uppercase; letter-spacing: 0.6pt; }
+  .cifra-sub{ font-size: 6.5pt; color: #9A9490; }
+  .nota { font-size: 8pt; color: #7A736D; font-style: italic; margin: 4pt 0 0 0; text-align: left; }
+  .cita { background: #F8F7F4; padding: 6pt 9pt; margin: 4pt 0; }
+  .cita-tipo { font-size: 6.5pt; font-weight: bold; color: #1A2F4A; letter-spacing: 0.8pt;
+               text-transform: uppercase; margin: 0 0 2pt 0; text-align: left; }
+  .cita-txt { font-style: italic; font-size: 9pt; margin: 0; }
+  .acc { margin: 0 0 7pt 0; }
+  .acc-chip { font-size: 6.5pt; font-weight: bold; color: #fff; padding: 2pt 7pt; letter-spacing: 0.6pt; }
+  .acc-txt { font-size: 9.5pt; margin: 3pt 0 0 0; }
+  .acc-due { font-size: 8pt; font-weight: bold; color: #1A2F4A; margin: 1pt 0 0 0; text-align: left; }
+  .pie { font-size: 7.5pt; color: #9A9490; text-align: center; margin-top: 22pt;
+         border-top: 0.5pt solid #E2DDD8; padding-top: 6pt; }
 </style>
 </head>
 <body>
 
-<!-- PORTADA -->
-<div style="background:#1A2F4A; padding:30pt; margin:-2cm -2cm 20pt -2cm; color:white;">
-  ${logo ? `<img src="${logo}" style="height:52pt;margin-bottom:10pt;" alt="">` : ''}
-  <p style="font-size:8pt; color:#B8892A; font-weight:bold; text-transform:uppercase; letter-spacing:2px; margin:0 0 6pt 0; text-align:left;">Informe de Clima Laboral</p>
-  <h1 style="color:white; margin:0 0 8pt 0; font-size:26pt;">${tx(company)}</h1>
-  <p style="color:#C8C3BE; margin:0 0 4pt 0; text-align:left;">Evaluación Interna bajo Marco de Control Interno COSO</p>
-  <p style="color:#C8C3BE; font-size:9pt; margin:0; text-align:left;">Fecha: ${fecha} · Participantes: ${plantilla ? total + ' de ' + plantilla + ' (' + Math.round(total/plantilla*100) + '% de participación)' : total} · Áreas: ${totalAreas}</p>
-</div>
+${logo ? `<p style="margin:0 0 8pt 0;text-align:right;"><img src="${logo}" style="height:52pt;" alt=""></p>` : ''}
+<h1>INFORME DE CLIMA LABORAL</h1>
+<p class="empresa">${tx(company)}</p>
+<p class="metodo">Encuesta interna aplicada como prueba del componente Ambiente de Control del marco COSO. Preguntas cerradas en escala 1 (Nunca) a 4 (Siempre), agrupadas en ${dims.length} dimensiones, más comentarios abiertos. ${fraseIdentidad}</p>
+<p class="sello">${tx(fecha)} &nbsp;·&nbsp; CONFIDENCIAL · Uso exclusivo de la Dirección General &nbsp;·&nbsp; Participantes: ${participacion} &nbsp;·&nbsp; Áreas: ${totalAreas}</p>
+<div class="regla"></div>
 
-<p><span class="confidencial">CONFIDENCIAL</span> — Uso exclusivo de Dirección General</p>
+<h2>Versión íntegra</h2>
+<p>Este documento es la versión completa del informe de clima laboral y se anexa como papel de trabajo. A diferencia del resumen ejecutivo de dos páginas que circula en PDF, aquí se transcriben <strong>todos</strong> los comentarios del personal, sin recortar, y se lista el texto completo de cada pregunta. Su circulación es restringida.</p>
 
-<!-- SECCIÓN 1: KPIs -->
-<h2>1. Indicadores Clave de Desempeño</h2>
-<table class="kpi-table">
+<h2>Resumen ejecutivo</h2>
+<p>${tx(window._executiveSummary || diagnostico)}</p>
+
+<h2>Cifras clave</h2>
+<table class="cifras">
 <tr>
-  <td><div class="kpi-label">Score Global</div><div class="kpi-value" style="color:#${sc(GLOBAL)}">${GLOBAL.toFixed(2)}</div><div style="font-size:8pt;color:#9A9490;">/ 4.0</div></td>
-  <td><div class="kpi-label">Respuestas Positivas</div><div class="kpi-value" style="color:#1A5C3A">${POS_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 3-4</div></td>
-  <td><div class="kpi-label">Respuestas Negativas</div><div class="kpi-value" style="color:#8B2A1F">${NEG_PCT}%</div><div style="font-size:8pt;color:#9A9490;">Puntuaciones 1-2</div></td>
-  <td><div class="kpi-label">Áreas Críticas</div><div class="kpi-value" style="color:#${critAreasTodas.length>0?'8B2A1F':'1A5C3A'}">${critAreasTodas.length}</div><div style="font-size:8pt;color:#9A9490;">Score &lt; 2.3</div></td>
-  <td><div class="kpi-label">Participantes</div><div class="kpi-value" style="color:#1A2F4A">${total}</div><div style="font-size:8pt;color:#9A9490;">${totalAreas} áreas</div></td>
+  <td><div class="cifra" style="color:#${sc(GLOBAL)}">${GLOBAL.toFixed(2)}</div><div class="cifra-et">Calificación global</div><div class="cifra-sub">Nivel: ${scoreLabel.toUpperCase()}</div></td>
+  <td><div class="cifra" style="color:#1A2F4A">${plantilla ? total + ' de ' + plantilla : total}</div><div class="cifra-et">${plantilla ? 'Participación: ' + Math.round(total/plantilla*100) + '%' : 'Participantes'}</div><div class="cifra-sub">${plantilla ? 'de la plantilla registrada' : totalAreas + ' áreas'}</div></td>
+  <td><div class="cifra" style="color:#${critDims.length ? '8B2A1F' : '1A5C3A'}">${critDims.length} de ${dims.length}</div><div class="cifra-et">Dimensiones en nivel crítico</div><div class="cifra-sub">${critDims.length ? 'califican por debajo de 2.3' : 'ninguna por debajo de 2.3'}</div></td>
+  <td><div class="cifra" style="color:#1A2F4A">${nComentarios}</div><div class="cifra-et">Comentarios abiertos</div><div class="cifra-sub">recibidos del personal</div></td>
 </tr>
 </table>
-<p><strong>NIVEL: ${scoreLabel.toUpperCase()}</strong></p>
+<p class="nota">Escala única del informe: Crítico menos de 2.3 · Atención de 2.3 a 3.0 · Satisfactorio 3.0 o más. Las respuestas negativas suman ${NEG_N} de ${RESP_N} (${NEG_PCT}%) y las positivas ${POS_N} (${POS_PCT}%), una diferencia de ${Math.abs(NEG_N - POS_N)} ${Math.abs(NEG_N - POS_N) === 1 ? 'respuesta' : 'respuestas'}, sin punto neutro en la escala.</p>
 
-<!-- SECCIÓN 2: DIAGNÓSTICO -->
-<h2>2. Diagnóstico Ejecutivo — Ambiente de Control COSO</h2>
-<p>Con fundamento en la Encuesta de Clima Laboral aplicada a <strong>${total} colaboradores</strong> de <strong>${totalAreas} áreas</strong>, y considerando los cinco componentes del Marco COSO, se presenta el siguiente diagnóstico ejecutivo para consideración de la Dirección General.</p>
-<p>${diagnostico}</p>
-
-<!-- SECCIÓN 3: ÁREAS -->
-<h2>3. Evaluación de Riesgos por Área</h2>
+<h2>Por área</h2>
 <table>
-<tr><th>Área</th><th>Participantes</th><th>Score</th><th>Nivel</th></tr>
-${[...critAreas,...warnAreas,...goodAreas].map(a=>`
+<tr><th>Área</th><th>Participantes</th><th>Calificación</th><th>Nivel</th></tr>
+${areasOrdenadas.map(a => `
 <tr>
   <td><strong>${tx(a.area)}</strong></td>
   <td style="text-align:center">${a.count}</td>
@@ -2644,81 +2703,69 @@ ${[...critAreas,...warnAreas,...goodAreas].map(a=>`
   <td style="color:#${sc(a.overall)};font-weight:bold">${lv(a.overall)}</td>
 </tr>`).join('')}
 </table>
+${areasReservadas.length > 0 ? `<p class="nota">No se desglosa ${areasReservadas.length === 1 ? '1 área' : areasReservadas.length + ' áreas'} de ${areaData.length} con menos de ${MIN_ANONIMATO} respuestas: el resultado identificaría a quien contestó. Sus respuestas sí cuentan en la calificación global y en los resultados por dimensión, y el conteo de alertas las incluye.</p>` : ''}
 
-${critAreas.length>0?`<p><span class="critico">Áreas críticas (score &lt; 2.3) — Intervención inmediata:</span> ${critAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
-${warnAreas.length>0?`<p><span class="atencion">Áreas en atención (2.3–3.0):</span> ${warnAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
-${goodAreas.length>0?`<p><span class="satisfactorio">Áreas satisfactorias (≥ 3.0):</span> ${goodAreas.map(a=>tx(a.area)+' ('+a.overall.toFixed(2)+')').join(', ')}</p>`:''}
-${areasReservadas.length>0?`<p style="font-size:9pt;color:#6B6560;font-style:italic;">Nota de confidencialidad: ${areasReservadas.length===1?'1 área no se desglosa':areasReservadas.length+' áreas no se desglosan'} por tener menos de ${MIN_ANONIMATO} respuestas, ya que el resultado identificaría a quien contestó. Sus respuestas sí están incluidas en el score global y en los resultados por dimensión.</p>`:''}
+<h2>Por dimensión, de menor a mayor</h2>
+<table>
+<tr><th>Pregunta</th><th>Respuestas</th><th>Calificación</th><th>Nivel</th></tr>
+${dimsOrdenadas.map(d => `
+<tr>
+  <td>${tx(d.label)}</td>
+  <td style="text-align:center">${d.count}</td>
+  <td style="text-align:center;color:#${sc(d.avg)};font-weight:bold">${d.avg.toFixed(2)}</td>
+  <td style="color:#${sc(d.avg)};font-weight:bold">${lv(d.avg)}</td>
+</tr>`).join('')}
+</table>
+<p class="nota">Se lista el texto completo de cada pregunta, tal como la respondió el personal. El PDF ejecutivo las muestra con nombre abreviado por falta de espacio.</p>
 
-<!-- SECCIÓN 4: DIMENSIONES -->
-<h2>4. Actividades de Control — Resultados por Dimensión</h2>
-${critDims.length>0?`<p><span class="critico">Dimensiones críticas (&lt; 2.3):</span></p><ul>${critDims.map(d=>`<li>${d.label} — <strong style="color:#8B2A1F">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
-${warnDims.length>0?`<p><span class="atencion">Dimensiones en atención (2.3–3.0):</span></p><ul>${warnDims.map(d=>`<li>${d.label} — <strong style="color:#8A5210">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
-${goodDims.length>0?`<p><span class="satisfactorio">Dimensiones satisfactorias (≥ 3.0):</span></p><ul>${goodDims.map(d=>`<li>${d.label} — <strong style="color:#1A5C3A">${d.avg.toFixed(2)}</strong></li>`).join('')}</ul>`:''}
-
-<!-- SECCIÓN 5: HALLAZGOS -->
-<h2>5. Información y Comunicación — Hallazgos Cualitativos</h2>
-${(propuestas.length + observaciones.length) > 0 ? `
-<p>Se transcriben íntegras las ${propuestas.length + observaciones.length} respuestas abiertas recibidas, sin resumir ni recortar.</p>
-${propuestas.length>0?`<p><strong>Propuestas de mejora del personal (${propuestas.length})</strong></p><ol>${propuestas.map(p=>`<li><p>${tx(p)}</p></li>`).join('')}</ol>`:''}
-${observaciones.length>0?`<p><strong>Observaciones del personal (${observaciones.length})</strong></p><ol>${observaciones.map(o=>`<li><p>${tx(o)}</p></li>`).join('')}</ol>`:''}
+<h2>Lo que dice el personal</h2>
+${nComentarios > 0 ? `
+<p>Se transcriben los <strong>${nComentarios}</strong> comentarios recibidos, literales y con su redacción original, sin resumir ni recortar. No se indica el área de cada comentario: la encuesta no la registra por comentario y, en un área pequeña, la etiqueta señalaría a quien escribió.</p>
+${propuestas.length > 0 ? `<h3>Propuestas de mejora (${propuestas.length})</h3>
+${propuestas.map(p => `<div class="cita"><p class="cita-tipo">Propuesta de mejora</p><p class="cita-txt">${tx(p)}</p></div>`).join('')}` : ''}
+${observaciones.length > 0 ? `<h3>Observaciones (${observaciones.length})</h3>
+${observaciones.map(o => `<div class="cita"><p class="cita-tipo">Observación</p><p class="cita-txt">${tx(o)}</p></div>`).join('')}` : ''}
 ` : `
-<p>No se recibieron comentarios abiertos. El análisis cuantitativo revela los siguientes hallazgos principales:</p>
-<ol>${hallazgos.map(h=>`<li><p>${tx(h)}</p></li>`).join('')}</ol>
+<p>No se recibieron comentarios abiertos. El análisis cuantitativo arroja lo siguiente:</p>
+<ul>${hallazgos.map(h => `<li>${tx(h)}</li>`).join('')}</ul>
 `}
 
-<!-- SECCIÓN 6: CONCLUSIÓN -->
-<h2>6. Conclusión y Recomendaciones — Monitoreo COSO</h2>
-<p>${conclusion}</p>
+<h2>Conclusión</h2>
+<p>${tx(conclusion)}</p>
 
-<div class="prio-alta">PRIORIDAD ALTA — ACCIÓN INMEDIATA</div>
-<ul>
-  <li>Programa de desarrollo de competencias para mandos medios: liderazgo, comunicación asertiva y gestión de equipos.</li>
-  <li>Revisión y aplicación consistente del organigrama y políticas internas, sin excepciones ni preferencias.</li>
-  ${critAreas.length>0?`<li>Diagnóstico cualitativo urgente en áreas críticas: ${critAreas.map(a=>tx(a.area)).join(', ')}.</li>`:''}
-</ul>
+<h2>Acciones recomendadas</h2>
+${acciones.map(a => `
+<div class="acc">
+  <span class="acc-chip" style="background-color:#${chip(a.prioridad)}">${a.prioridad.toUpperCase()}</span>
+  <p class="acc-txt">${tx(a.accion)}</p>
+  ${(a.responsable || a.fecha) ? `<p class="acc-due">Fecha y responsable propuestos: ${tx([a.fecha, a.responsable].filter(Boolean).join(' · '))}</p>` : ''}
+</div>`).join('')}
+${!planRedactado ? `<p class="nota">Este plan es el de reserva del sistema, y por eso no trae responsable ni fecha: la redacción específica para esta empresa no se pudo generar. Vuelve a generar el informe con la conexión disponible para obtener un plan propio.</p>` : ''}
 
-<div class="prio-media">PRIORIDAD MEDIA — CORTO PLAZO</div>
-<ul>
-  <li>Implementar formatos formales de asignación de actividades con responsables, alcances y fechas definidas.</li>
-  <li>Establecer canales de retroalimentación estructurados entre áreas.</li>
-  <li>Actualizar y difundir el organigrama con sesión de inducción para nuevo personal.</li>
-</ul>
-
-<div class="prio-monitoreo">MONITOREO CONTINUO</div>
-<ul>
-  <li>Programar segunda medición de clima laboral en no más de 6 meses.</li>
-  <li>Comunicar resultados y planes de mejora a todo el personal de manera transparente.</li>
-  <li>Reconocer públicamente las áreas y prácticas que muestran fortalezas.</li>
-</ul>
-
-<br><br>
-<hr style="border:1px solid #E2DDD8;">
+<br>
 <table style="width:100%;border:none;">
 <tr>
-  <td style="border:none;width:45%;padding-top:30pt;">
-    <div style="border-top:1px solid #9A9490;padding-top:4pt;">
+  <td style="border:none;width:45%;padding-top:26pt;">
+    <div style="border-top:0.5pt solid #9A9490;padding-top:4pt;">
       <p style="margin:0;font-size:9pt;">Elaborado por</p>
       <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Recursos Humanos · ${tx(company)}</p>
     </div>
   </td>
   <td style="border:none;width:10%;"></td>
-  <td style="border:none;width:45%;padding-top:30pt;">
-    <div style="border-top:1px solid #9A9490;padding-top:4pt;">
+  <td style="border:none;width:45%;padding-top:26pt;">
+    <div style="border-top:0.5pt solid #9A9490;padding-top:4pt;">
       <p style="margin:0;font-size:9pt;">Revisado por</p>
       <p style="margin:2pt 0 0 0;font-size:9pt;font-weight:bold;">Dirección General</p>
     </div>
   </td>
 </tr>
 </table>
-<p style="text-align:center;font-size:8pt;color:#9A9490;font-style:italic;margin-top:20pt;">
-Documento confidencial. Elaborado con base en ${total} respuestas de ${totalAreas} áreas · Sistema ClimaIQ · ${fecha}
-</p>
+
+<p class="pie">Base: ${total} respuestas de ${totalAreas} áreas${plantilla ? ', ' + Math.round(total/plantilla*100) + '% de una plantilla de ' + plantilla + ' personas' : ''} · Prueba del Ambiente de Control, marco COSO · ${tx(fecha)}<br>
+Versión íntegra de circulación restringida. El resumen ejecutivo de dos páginas es el que circula.</p>
 
 </body>
 </html>`;
-
-  return html;
 }
 
 
