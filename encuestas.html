@@ -228,25 +228,36 @@ async function cargar() {
     // Una hoja con respuestas que ya no tiene encuesta publicada sigue siendo
     // una encuesta: es una que ya se cerró. Si no se mostrara, desaparecería
     // del sistema justo cuando toca leer su informe.
+    // El registro de cada encuesta viene dentro de listSurveys, así que para
+    // las publicadas no hay que pedir nada más.
+    const conDatos = (e, d) => {
+      e.plantilla   = (d && d.plantilla) ? Number(d.plantilla) : null;
+      e.apertura    = (d && d.apertura)    || '';
+      e.cierre      = (d && d.cierre)      || '';
+      e.responsable = (d && d.responsable) || '';
+      return e;
+    };
+
     const publicadas = pub.surveys || [];
     const vistas = {};
     ENCUESTAS = publicadas.map(s => {
       vistas[s.hoja] = true;
-      return { id: s.id, nombre: s.nombre, hoja: s.hoja, activa: !!s.activa,
-               actualizada: s.actualizada, respuestas: conteo[s.hoja] || 0, plantilla: null };
+      return conDatos({ id: s.id, nombre: s.nombre, hoja: s.hoja, activa: !!s.activa,
+                        actualizada: s.actualizada, respuestas: conteo[s.hoja] || 0 }, s.datos);
     });
     (hojas.sheets || []).forEach(h => {
       if (vistas[h.name]) return;
-      ENCUESTAS.push({ id: null, nombre: h.name, hoja: h.name, activa: false,
-                       actualizada: '', respuestas: h.rows, plantilla: null });
+      ENCUESTAS.push(conDatos({ id: null, nombre: h.name, hoja: h.name, activa: false,
+                                actualizada: '', respuestas: h.rows }, null));
     });
 
-    // La plantilla se pide por hoja. Son pocas encuestas, así que va en paralelo.
-    await Promise.all(ENCUESTAS.map(async e => {
+    // Solo las hojas que no tienen encuesta publicada necesitan su propia
+    // consulta: su registro no viaja en listSurveys.
+    await Promise.all(ENCUESTAS.filter(e => !e.id).map(async e => {
       try {
-        const p = await api({ action: 'getPlantilla', sheet: e.hoja });
-        e.plantilla = (p && p.plantilla) ? Number(p.plantilla) : null;
-      } catch (err) { e.plantilla = null; }
+        const d = await api({ action: 'getDatosEncuesta', sheet: e.hoja });
+        conDatos(e, d && d.datos);
+      } catch (err) { /* se muestra sin registro */ }
     }));
 
     $('estado').innerHTML = '';
@@ -283,6 +294,12 @@ function pintar() {
       '<div class="barra"><i style="width:' + (pct === null ? 0 : Math.min(100, pct)) + '%"></i></div>' +
       (e.plantilla ? '' :
         '<div class="sinplantilla">Falta capturar cuántas personas trabajan aquí</div>') +
+      (e.cierre || e.responsable ?
+        '<div class="enc-hoja" style="margin-top:10px">' +
+          (e.cierre ? 'Cierra el ' + esc(e.cierre) : '') +
+          (e.cierre && e.responsable ? ' · ' : '') +
+          esc(e.responsable) +
+        '</div>' : '') +
     '</div>';
   }).join('');
 
@@ -336,6 +353,23 @@ async function abrir(hoja) {
         '<div id="avisoClave"></div>' +
       '</div>' +
 
+      '<div class="sec">' +
+        '<span class="eyebrow">Registro de la encuesta</span>' +
+        '<div class="fila">' +
+          '<div class="campo"><label>Se abrió el</label>' +
+            '<input class="input" type="date" id="inpApertura" value="' + esc(aIso(e.apertura)) + '"></div>' +
+          '<div class="campo"><label>Cierra el</label>' +
+            '<input class="input" type="date" id="inpCierre" value="' + esc(aIso(e.cierre)) + '"></div>' +
+          '<div class="campo" style="flex:1;min-width:200px"><label>Responsable</label>' +
+            '<input class="input" id="inpResponsable" style="width:100%" placeholder="Ej: Recursos Humanos" ' +
+              'value="' + esc(e.responsable) + '"></div>' +
+          '<button class="btn primary" id="btnDatos">Guardar</button>' +
+        '</div>' +
+        '<p class="sub" style="margin-top:9px">Queda guardado junto a las respuestas. ' +
+          'La fecha de cierre es la referencia para saber si todavía se puede contestar.</p>' +
+        '<div id="avisoDatos"></div>' +
+      '</div>' +
+
       (liga ?
       '<div class="sec">' +
         '<span class="eyebrow">Liga para compartir</span>' +
@@ -367,6 +401,8 @@ async function abrir(hoja) {
 
   const bp = $('btnPlantilla');
   if (bp) bp.onclick = () => guardarPlantilla(hoja);
+  const bd = $('btnDatos');
+  if (bd) bd.onclick = () => guardarDatos(hoja);
   const bc = $('btnCopiar');
   if (bc) bc.onclick = () => {
     const c = $('inpLiga');
@@ -376,10 +412,23 @@ async function abrir(hoja) {
   };
 }
 
+// En la hoja las fechas se guardan como dd/mm/aaaa, que es como las lee una
+// persona; el campo del navegador las quiere como aaaa-mm-dd. Se traduce en
+// los dos sentidos y se deja pasar cualquier cosa que no tenga esa forma, para
+// no borrar en silencio algo que alguien haya capturado a mano en la hoja.
+function aIso(f) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(f || '').trim());
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+}
+function aTexto(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+
 // Un aviso dentro de la pantalla, con la salida a la mano. Nunca una ventanita
 // del navegador: no dice de dónde sacar el dato y no deja seguir sin él.
-function avisoClave(msg) {
-  const c = $('avisoClave');
+function avisoClave(msg, donde) {
+  const c = $(donde || 'avisoClave');
   if (!c) return;
   c.innerHTML = msg
     ? '<div class="aviso malo" style="margin-top:12px">' + esc(msg) +
@@ -432,6 +481,53 @@ async function guardarPlantilla(hoja) {
       CLAVE = '';
       localStorage.removeItem('climaiq_clave_pub');
       avisoClave('La clave guardada no es la correcta.');
+      return;
+    }
+    throw new Error(error);
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+
+async function guardarDatos(hoja) {
+  const btn = $('btnDatos');
+  const apertura    = aTexto($('inpApertura').value);
+  const cierre      = aTexto($('inpCierre').value);
+  const responsable = $('inpResponsable').value.trim();
+
+  if (apertura && cierre && aIso(cierre) < aIso(apertura)) {
+    toast('La fecha de cierre no puede ser anterior a la de apertura');
+    return;
+  }
+
+  if (!CLAVE) { avisoClave('Para guardar el registro falta capturar la clave de publicación.', 'avisoDatos'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({
+      _op: 'setDatosEncuesta', _clave: CLAVE, sheet: hoja,
+      apertura: apertura, cierre: cierre, responsable: responsable
+    }));
+    const json = await (await fetch(URL_GAS, { method: 'POST', body: form })).json();
+
+    if (json && json.success) {
+      const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
+      if (e) { e.apertura = apertura; e.cierre = cierre; e.responsable = responsable; }
+      avisoClave('', 'avisoDatos');
+      pintar();
+      toast('Registro guardado');
+      return;
+    }
+    const error = (json && json.error) || 'No se pudo guardar.';
+    if (/clave/i.test(error)) {
+      CLAVE = '';
+      localStorage.removeItem('climaiq_clave_pub');
+      avisoClave('La clave guardada no es la correcta.', 'avisoDatos');
       return;
     }
     throw new Error(error);
