@@ -1993,9 +1993,21 @@ function generarInformePDF() {
   const companyLines = doc.splitTextToSize(t(companyName), W - M*2 - (logoData ? 34 : 0));
   let yEnc = 31;
   companyLines.forEach(function(l) { doc.text(l, M, yEnc); yEnc += 5.4; });
+  // Cuántas respuestas llegaron con nombre. El informe NO puede llamarse
+  // anónimo: identificarse es opcional y la mayoría no usa la opción, y
+  // además se capturan cargo y jefe inmediato. Decirlo con el número deja
+  // claro el peso de la evidencia sin prometer lo que la encuesta no da.
+  const _conNombre = DATA.filter(function(d) {
+    const n = String(d.nombre || '').trim();
+    return n && !/^an[oó]nimo$/i.test(n);
+  }).length;
+  const _fraseIdentidad = _conNombre === 0
+    ? 'Identificarse fue opcional y todas las respuestas llegaron sin nombre.'
+    : 'Identificarse fue opcional: ' + _conNombre + ' de ' + DATA.length + ' respuestas llegaron con nombre.';
+
   doc.setFontSize(7.4); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-  doc.splitTextToSize(t('Encuesta interna anónima aplicada como prueba del componente Ambiente de Control del marco COSO. Preguntas cerradas en escala 1 (Nunca) a 4 (Siempre), agrupadas en ' +
-    dims.length + ' dimensiones, más comentarios abiertos.'), W - M*2).forEach(function(l) {
+  doc.splitTextToSize(t('Encuesta interna aplicada como prueba del componente Ambiente de Control del marco COSO. Preguntas cerradas en escala 1 (Nunca) a 4 (Siempre), agrupadas en ' +
+    dims.length + ' dimensiones, más comentarios abiertos. ' + _fraseIdentidad), W - M*2).forEach(function(l) {
     doc.text(l, M, yEnc); yEnc += 3.6;
   });
   doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY); doc.setFontSize(7.6);
