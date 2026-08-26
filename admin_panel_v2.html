@@ -96,6 +96,16 @@ body {
   .topbar-nav a { padding: 0.34rem 0.5rem; font-size: 0.72rem; }
 }
 .topbar-actions { display: flex; gap: 0.5rem; align-items: center; }
+/* En pantalla angosta esta fila de botones medía 952 px sobre un ancho de 485
+   y empujaba la página entera de lado. Ahora se desliza dentro de su propio
+   carril en lugar de arrastrar todo el panel. */
+@media (max-width: 900px) {
+  .topbar { height: auto; flex-wrap: wrap; padding: 0.5rem 0.9rem; gap: 0.4rem; }
+  .topbar-nav { margin-left: 0; order: 3; width: 100%; overflow-x: auto; }
+  .topbar-actions { order: 4; width: 100%; overflow-x: auto; padding-bottom: 0.2rem; }
+  .topbar-actions::-webkit-scrollbar { height: 3px; }
+  .saved-indicator { display: none; }
+}
 .btn-bar {
   font-family: 'Epilogue', sans-serif;
   font-size: 0.76rem;

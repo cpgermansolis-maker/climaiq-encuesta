@@ -365,6 +365,11 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
     <div class="nav-item" onclick="goTo('selector')" id="nav-selector">📂 Elegir Encuesta</div>
     <div class="nav-item" onclick="goTo('comparar')" id="nav-comparar">📊 Comparar</div>
     <div class="nav-sec">Sistema</div>
+    <!-- Los enlaces del sistema van TAMBIÉN aquí, no solo en la barra de
+         arriba. En el teléfono esa barra se esconde y el menú es esta lateral:
+         sin estos renglones no había forma de salir del dashboard. -->
+    <a class="nav-item" href="encuestas.html" style="display:block;text-decoration:none;color:inherit">📋 Encuestas</a>
+    <a class="nav-item" href="admin_panel_v2.html" style="display:block;text-decoration:none;color:inherit">⚙️ Configuración</a>
     <div class="nav-item" onclick="goTo('setup')" id="nav-setup" style="display:none">🔗 Conexión</div>
     <div class="sb-foot">
       <div class="sb-stat" id="sbFoot">Sin datos</div>
