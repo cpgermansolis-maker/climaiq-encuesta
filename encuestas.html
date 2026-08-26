@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encuestas · ClimaIQ</title>
+<!--
+  ══════════════════════════════════════════════════════════════
+  ClimaIQ — ENCUESTAS
+
+  Pantalla de entrada del sistema. Reúne lo que antes obligaba a
+  salirse a otra dirección: qué encuestas hay, en qué estado están,
+  cuánta gente ha contestado y la liga para compartirlas.
+
+  Se construye con oac-tokens.css, el sistema visual de OAC, para
+  que cuando este módulo se mude a OAC no haya que rediseñar nada:
+  la barra superior de aquí es la misma .oac-topbar de allá.
+
+  No pide reconectar nada: lee la misma conexión que ya guardaron
+  el dashboard y el panel (climaiq_gas_url).
+  ══════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="oac-tokens.css">
+<style>
+  body { background: var(--paper); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
+  .head h1 { font-size: 27px; font-weight: 500; letter-spacing: -.025em; margin: 4px 0 0; }
+  .head p  { color: var(--muted); font-size: 13.5px; margin: 4px 0 0; max-width: 62ch; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+
+  .enc { background:#fff; border:1px solid var(--line); border-radius: var(--r-2xl); padding: 20px;
+         cursor: pointer; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+  .enc:hover { border-color: var(--navy); box-shadow: var(--shadow-card-hover); }
+  .enc.sel { border-color: var(--navy); box-shadow: var(--shadow-card-hover); }
+  .enc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .enc-nom { font-size: 15.5px; font-weight: 600; letter-spacing: -.015em; line-height: 1.25; }
+  .enc-hoja { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+
+  .chip { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+          padding: 4px 8px; border-radius: 999px; white-space: nowrap; font-weight: 500; }
+  .chip.abierta { background: rgba(30,127,92,.1);  color: var(--good); }
+  .chip.cerrada { background: rgba(90,106,126,.12); color: var(--muted); }
+
+  .barra { height: 7px; background: var(--mist); border-radius: 999px; overflow: hidden; margin-top: 14px; }
+  .barra > i { display: block; height: 100%; background: var(--navy); border-radius: 999px; transition: width .5s ease; }
+  .cifras { display: flex; align-items: baseline; justify-content: space-between; margin-top: 9px; gap: 8px; }
+  .cifras .n { font-size: 21px; font-weight: 500; letter-spacing: -.02em; }
+  .cifras .n .de { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .cifras .pct { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+
+  .sinplantilla { margin-top: 12px; font-size: 12px; color: var(--warn); display: flex; align-items: center; gap: 6px; }
+
+  .det { margin-top: 26px; background:#fff; border:1px solid var(--line); border-radius: var(--r-2xl); padding: 24px; }
+  .det h2 { font-size: 18px; font-weight: 500; letter-spacing: -.02em; margin: 0 0 2px; }
+  .det .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .sec { margin-top: 24px; }
+  .sec > .eyebrow { display: block; margin-bottom: 10px; }
+
+  .areas { display: flex; flex-direction: column; gap: 11px; }
+  .area { display: grid; grid-template-columns: minmax(120px, 200px) 1fr auto; align-items: center; gap: 12px; }
+  .area .nom { font-size: 13.5px; }
+  .area .bar { height: 9px; background: var(--mist); border-radius: 999px; overflow: hidden; }
+  .area .bar > i { display: block; height: 100%; background: var(--sky); border-radius: 999px; }
+  .area .val { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
+  .liga { display: flex; gap: 8px; align-items: center; }
+  .liga input { font-family: var(--font-mono); font-size: 12px; }
+
+  .fila { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .campo { display: flex; flex-direction: column; gap: 5px; }
+  .campo label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+                 text-transform: uppercase; color: var(--muted); }
+  .campo input { width: 130px; }
+
+  .aviso { border: 1px solid var(--line); background:#fff; border-radius: var(--r-xl);
+           padding: 18px 20px; color: var(--muted); font-size: 13.5px; }
+  .aviso.malo { border-color: rgba(159,43,30,.35); color: var(--bad); background: rgba(159,43,30,.04); }
+  .aviso b { color: var(--ink); }
+
+  .cargando { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--mist);
+              border-top-color: var(--navy); border-radius: 50%; animation: gira .8s linear infinite;
+              vertical-align: -2px; margin-right: 7px; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+           background: var(--ink); color:#fff; padding: 11px 18px; border-radius: var(--r-lg);
+           font-size: 13.5px; z-index: 400; opacity: 0; pointer-events: none; transition: opacity var(--t-base); }
+  .toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- La marca es la de OAC, copiada tal cual de acceso.html. No se dibuja una
+     aproximación: este módulo va a vivir dentro de OAC y tiene que ser la misma. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="oac-mark" viewBox="0 0 400 220">
+      <g style="mix-blend-mode:multiply">
+        <circle cx="110" cy="110" r="90" fill="#9FCDE6" opacity=".95"/>
+        <polygon points="200,20 290,200 110,200" fill="#D8DDE1" opacity=".85"/>
+        <path d="M220 20 a90 90 0 0 1 0 180 L290 200 L290 20 Z" fill="#0E2A4E" opacity=".92"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="oac-topbar">
+  <div class="oac-topbar-inner">
+    <div class="oac-logo">
+      <svg width="42" height="23" viewBox="0 0 400 220" aria-hidden="true"><use href="#oac-mark"/></svg>
+      <span class="lt"><span class="a">ClimaIQ</span><span class="b">OAC · Clima laboral</span></span>
+    </div>
+    <nav class="nav">
+      <a href="encuestas.html" class="active">Encuestas</a>
+      <a href="dashboard_v3.html">Resultados</a>
+      <a href="admin_panel_v2.html">Configuración</a>
+    </nav>
+    <div class="tools">
+      <a class="btn primary" href="admin_panel_v2.html#publicar">Nueva encuesta</a>
+    </div>
+    <button class="oac-hamburger" id="ham" onclick="menuMovil()" aria-label="Menú">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<div class="oac-mobile-nav" id="menuMovil">
+  <button class="close-btn" onclick="menuMovil()">CERRAR</button>
+  <a href="encuestas.html">Encuestas</a>
+  <a href="dashboard_v3.html">Resultados</a>
+  <a href="admin_panel_v2.html">Configuración</a>
+  <a href="admin_panel_v2.html#publicar">Nueva encuesta</a>
+</div>
+
+<main class="wrap">
+  <div class="head">
+    <div>
+      <span class="eyebrow">Panel de encuestas</span>
+      <h1>Encuestas</h1>
+      <p>Cada encuesta con su plantilla, su avance y su liga. La plantilla se guarda junto a las
+         respuestas, así que no se vuelve a preguntar ni se pierde al cambiar de computadora.</p>
+    </div>
+  </div>
+
+  <div id="estado"></div>
+  <div class="grid" id="grid"></div>
+  <div id="detalle"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+
+// La conexión y la clave son las mismas que ya guardaron el dashboard y el
+// panel. Si se leyeran con otro nombre, el sistema volvería a pedir datos que
+// el usuario ya capturó, que es justo lo que se quiere quitar.
+const URL_GAS = (localStorage.getItem('climaiq_gas_url') || '').trim();
+let CLAVE     = (localStorage.getItem('climaiq_clave_pub') || '').trim();
+
+let ENCUESTAS = [];
+let SELECCION = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+function menuMovil() {
+  $('menuMovil').classList.toggle('open');
+  $('ham').classList.toggle('open');
+}
+window.menuMovil = menuMovil;
+
+async function api(params) {
+  const u = new URL(URL_GAS);
+  Object.keys(params).forEach(k => u.searchParams.set(k, params[k]));
+  u.searchParams.set('_', Date.now());   // sin caché: el avance cambia solo
+  const r = await fetch(u.toString(), { cache: 'no-store' });
+  return await r.json();
+}
+
+// La liga de la encuesta se arma con la dirección de esta misma página, así
+// que funciona igual en GitHub Pages que abriendo el archivo en local.
+function ligaDe(id) {
+  const base = location.href.replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
+  return base + '?e=' + encodeURIComponent(id);
+}
+
+function nivelPct(p) {
+  return p >= 80 ? 'is-good' : p >= 50 ? 'is-warn' : 'is-bad';
+}
+
+async function cargar() {
+  if (!URL_GAS) {
+    $('estado').innerHTML = '<div class="aviso malo">Todavía no hay conexión configurada. ' +
+      'Ve a <b>Configuración</b> y conecta el Apps Script; esta pantalla usa la misma conexión.</div>';
+    return;
+  }
+  $('estado').innerHTML = '<div class="aviso"><span class="cargando"></span>Cargando encuestas…</div>';
+
+  try {
+    // listSurveys da las publicadas; listSheets da cuántas respuestas lleva
+    // cada hoja. Se juntan por el nombre de la hoja.
+    const [pub, hojas] = await Promise.all([
+      api({ action: 'listSurveys' }),
+      api({ action: 'listSheets' })
+    ]);
+    if (!pub.success)   throw new Error(pub.error   || 'No se pudieron leer las encuestas.');
+    if (!hojas.success) throw new Error(hojas.error || 'No se pudieron leer las hojas.');
+
+    const conteo = {};
+    (hojas.sheets || []).forEach(h => { conteo[h.name] = h.rows; });
+
+    // Una hoja con respuestas que ya no tiene encuesta publicada sigue siendo
+    // una encuesta: es una que ya se cerró. Si no se mostrara, desaparecería
+    // del sistema justo cuando toca leer su informe.
+    const publicadas = pub.surveys || [];
+    const vistas = {};
+    ENCUESTAS = publicadas.map(s => {
+      vistas[s.hoja] = true;
+      return { id: s.id, nombre: s.nombre, hoja: s.hoja, activa: !!s.activa,
+               actualizada: s.actualizada, respuestas: conteo[s.hoja] || 0, plantilla: null };
+    });
+    (hojas.sheets || []).forEach(h => {
+      if (vistas[h.name]) return;
+      ENCUESTAS.push({ id: null, nombre: h.name, hoja: h.name, activa: false,
+                       actualizada: '', respuestas: h.rows, plantilla: null });
+    });
+
+    // La plantilla se pide por hoja. Son pocas encuestas, así que va en paralelo.
+    await Promise.all(ENCUESTAS.map(async e => {
+      try {
+        const p = await api({ action: 'getPlantilla', sheet: e.hoja });
+        e.plantilla = (p && p.plantilla) ? Number(p.plantilla) : null;
+      } catch (err) { e.plantilla = null; }
+    }));
+
+    $('estado').innerHTML = '';
+    pintar();
+  } catch (err) {
+    $('estado').innerHTML = '<div class="aviso malo">No se pudieron cargar las encuestas: ' +
+      esc(err.message) + '</div>';
+  }
+}
+
+function pintar() {
+  if (!ENCUESTAS.length) {
+    $('estado').innerHTML = '<div class="aviso">Todavía no hay ninguna encuesta. ' +
+      'Crea la primera desde <b>Nueva encuesta</b>.</div>';
+    return;
+  }
+  $('grid').innerHTML = ENCUESTAS.map(e => {
+    const pct = e.plantilla ? Math.round(e.respuestas / e.plantilla * 100) : null;
+    return '<div class="enc' + (SELECCION === e.hoja ? ' sel' : '') + '" data-hoja="' + esc(e.hoja) + '">' +
+      '<div class="enc-top">' +
+        // La hoja solo se muestra cuando NO se llama igual que la encuesta.
+        // Repetir el mismo nombre dos veces no informa, solo ensucia.
+        '<div><div class="enc-nom">' + esc(e.nombre) + '</div>' +
+        (e.hoja && e.hoja !== e.nombre ? '<div class="enc-hoja">' + esc(e.hoja) + '</div>' : '') +
+        '</div>' +
+        '<span class="chip ' + (e.activa ? 'abierta' : 'cerrada') + '">' +
+          (e.activa ? 'Abierta' : 'Cerrada') + '</span>' +
+      '</div>' +
+      '<div class="cifras">' +
+        '<span class="n">' + e.respuestas +
+          (e.plantilla ? ' <span class="de">de ' + e.plantilla + '</span>' : '') + '</span>' +
+        (pct === null ? '' : '<span class="pct ' + nivelPct(pct) + '">' + pct + '% de participación</span>') +
+      '</div>' +
+      '<div class="barra"><i style="width:' + (pct === null ? 0 : Math.min(100, pct)) + '%"></i></div>' +
+      (e.plantilla ? '' :
+        '<div class="sinplantilla">Falta capturar cuántas personas trabajan aquí</div>') +
+    '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(document.querySelectorAll('.enc'), el => {
+    el.onclick = () => abrir(el.getAttribute('data-hoja'));
+  });
+}
+
+async function abrir(hoja) {
+  SELECCION = hoja;
+  pintar();
+  const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
+  if (!e) return;
+
+  $('detalle').innerHTML = '<div class="det"><span class="cargando"></span>Leyendo respuestas…</div>';
+
+  let porArea = [], total = 0;
+  try {
+    const d = await api({ action: 'getData', sheet: hoja });
+    if (d.success) {
+      const cuenta = {};
+      (d.data || []).forEach(f => {
+        const a = (f.area || 'Sin área').trim() || 'Sin área';
+        cuenta[a] = (cuenta[a] || 0) + 1;
+        total++;
+      });
+      porArea = Object.keys(cuenta).map(a => ({ area: a, n: cuenta[a] }))
+                      .sort((x, y) => y.n - x.n);
+    }
+  } catch (err) { /* se muestra el resto igual */ }
+
+  const liga = e.id ? ligaDe(e.id) : null;
+  const mayor = porArea.length ? porArea[0].n : 1;
+
+  $('detalle').innerHTML =
+    '<div class="det">' +
+      '<h2>' + esc(e.nombre) + '</h2>' +
+      '<p class="sub">' + (e.activa ? 'Abierta' : 'Cerrada') +
+        (e.actualizada ? ' · actualizada ' + esc(e.actualizada) : '') + '</p>' +
+
+      '<div class="sec">' +
+        '<span class="eyebrow">Plantilla</span>' +
+        '<div class="fila">' +
+          '<div class="campo"><label>Personas en la empresa</label>' +
+            '<input class="input" type="number" min="0" id="inpPlantilla" value="' +
+              (e.plantilla || '') + '" placeholder="0"></div>' +
+          '<button class="btn primary" id="btnPlantilla">Guardar</button>' +
+        '</div>' +
+        '<p class="sub" style="margin-top:9px">Se guarda junto a las respuestas, no en este navegador. ' +
+          'Es la base de la tasa de participación del informe.</p>' +
+      '</div>' +
+
+      (liga ?
+      '<div class="sec">' +
+        '<span class="eyebrow">Liga para compartir</span>' +
+        '<div class="liga">' +
+          '<input class="input" id="inpLiga" readonly value="' + esc(liga) + '">' +
+          '<button class="btn outline" id="btnCopiar">Copiar</button>' +
+        '</div>' +
+      '</div>' : '') +
+
+      '<div class="sec">' +
+        '<span class="eyebrow">Participación por área</span>' +
+        (porArea.length ?
+          '<div class="areas">' + porArea.map(a =>
+            '<div class="area">' +
+              '<span class="nom">' + esc(a.area) + '</span>' +
+              '<span class="bar"><i style="width:' + Math.round(a.n / mayor * 100) + '%"></i></span>' +
+              '<span class="val">' + a.n + (a.n === 1 ? ' respuesta' : ' respuestas') + '</span>' +
+            '</div>').join('') + '</div>' +
+          '<p class="sub" style="margin-top:12px">' + total +
+            (total === 1 ? ' respuesta recibida' : ' respuestas recibidas') +
+            (e.plantilla ? ' de ' + e.plantilla + ' personas' : '') + '.</p>'
+          : '<div class="aviso">Todavía no llega ninguna respuesta.</div>') +
+      '</div>' +
+
+      '<div class="sec">' +
+        '<a class="btn outline" href="dashboard_v3.html">Ver resultados e informe</a>' +
+      '</div>' +
+    '</div>';
+
+  const bp = $('btnPlantilla');
+  if (bp) bp.onclick = () => guardarPlantilla(hoja);
+  const bc = $('btnCopiar');
+  if (bc) bc.onclick = () => {
+    const c = $('inpLiga');
+    navigator.clipboard.writeText(c.value)
+      .then(() => toast('Liga copiada'))
+      .catch(() => { c.select(); document.execCommand('copy'); toast('Liga copiada'); });
+  };
+}
+
+async function guardarPlantilla(hoja) {
+  const n = parseInt($('inpPlantilla').value, 10);
+  if (!(n >= 0)) { toast('Escribe cuántas personas trabajan en la empresa'); return; }
+
+  if (!CLAVE) {
+    const k = prompt('Clave de publicación (la misma del panel):');
+    if (!k) return;
+    CLAVE = k.trim();
+    localStorage.setItem('climaiq_clave_pub', CLAVE);
+  }
+
+  const btn = $('btnPlantilla');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({
+      _op: 'setPlantilla', _clave: CLAVE, sheet: hoja, plantilla: n
+    }));
+    const res  = await fetch(URL_GAS, { method: 'POST', body: form });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'No se pudo guardar.');
+
+    const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
+    if (e) e.plantilla = n > 0 ? n : null;
+    pintar();
+    toast(n > 0 ? 'Plantilla guardada: ' + n + ' personas' : 'Plantilla borrada');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+
+cargar();
+
+})();
+</script>
+</body>
+</html>
