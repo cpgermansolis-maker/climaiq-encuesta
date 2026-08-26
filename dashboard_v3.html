@@ -1708,12 +1708,15 @@ function wrapLabel(s, max) {
           !s.name.startsWith('_labels_')
         );
         if (AVAILABLE_SHEETS.length > 0) {
-          // Reabrir la última encuesta que se estuvo viendo; si ya no existe,
-          // caer en la hoja con más respuestas
+          // Si vienes de otra pantalla con una encuesta en la mano, esa manda.
+          // Sin esto el dashboard abría la última que se hubiera visto, así que
+          // desde Encuestas podías pedir Grupo TODA y aterrizar en el taller.
+          const pedida = new URLSearchParams(location.search).get('sheet') || '';
           const recordada = localStorage.getItem('climaiq_sheet') || '';
-          const previa = AVAILABLE_SHEETS.find(s => s.name === recordada);
-          const best = previa || AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
-          await loadSheet(best.name);
+          const elegida = AVAILABLE_SHEETS.find(s => s.name === pedida)
+                       || AVAILABLE_SHEETS.find(s => s.name === recordada)
+                       || AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
+          await loadSheet(elegida.name);
         } else {
           loadData(); // fallback
         }

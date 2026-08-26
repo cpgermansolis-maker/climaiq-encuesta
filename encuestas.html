@@ -394,8 +394,11 @@ async function abrir(hoja) {
           : '<div class="aviso">Todavía no llega ninguna respuesta.</div>') +
       '</div>' +
 
+      // El botón se lleva la encuesta que se está viendo. Sin el parámetro, el
+      // dashboard abría la última que se hubiera consultado, no esta.
       '<div class="sec">' +
-        '<a class="btn outline" href="dashboard_v3.html">Ver resultados e informe</a>' +
+        '<a class="btn outline" href="dashboard_v3.html?sheet=' + encodeURIComponent(e.hoja) + '">' +
+          'Ver resultados e informe de ' + esc(e.nombre) + '</a>' +
       '</div>' +
     '</div>';
 
