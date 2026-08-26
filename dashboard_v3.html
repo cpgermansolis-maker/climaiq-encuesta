@@ -480,6 +480,9 @@ async function connect() {
   const plantilla = parseInt(document.getElementById('plantilla')?.value || '', 10);
   if (plantilla > 0) localStorage.setItem(clavePlantilla(), String(plantilla));
   else localStorage.removeItem(clavePlantilla());
+  // La plantilla también se manda a la hoja, para que sirva desde cualquier
+  // computadora y no solo desde esta. Si no se puede, se dice.
+  const guardadoRemoto = await guardarPlantillaEnHoja(plantilla);
   const spin = document.getElementById('connSpinner');
   if (spin) spin.style.display = 'inline-block';
   await loadData();
@@ -487,7 +490,39 @@ async function connect() {
   const guardado = [];
   if (apiKey) guardado.push('la llave');
   if (plantilla > 0) guardado.push('la plantilla de ' + plantilla + ' personas' + (CURRENT_SHEET ? ' para ' + CURRENT_SHEET : ''));
-  if (guardado.length) setupBanner('success', '✓ Se guardó ' + guardado.join(' y ') + ' en este navegador.');
+  if (guardado.length) {
+    setupBanner(guardadoRemoto.ok ? 'success' : 'error',
+      guardadoRemoto.ok
+        ? '✓ Se guardó ' + guardado.join(' y ') + (plantilla > 0 ? ' en la hoja, así que sirve desde cualquier computadora.' : ' en este navegador.')
+        : '✓ Se guardó ' + guardado.join(' y ') + ' en este navegador, pero no en la hoja: ' + guardadoRemoto.error +
+          ' El informe saldrá con la tasa de participación solo desde esta computadora.');
+  }
+}
+
+// La escritura en la hoja va firmada con la misma clave que publica encuestas.
+// Sin clave no se intenta: se queda la copia local y el mensaje lo advierte.
+async function guardarPlantillaEnHoja(plantilla) {
+  if (!URL_GAS) return { ok: false, error: 'no hay conexión configurada.' };
+  if (!CURRENT_SHEET) return { ok: false, error: 'no hay una encuesta seleccionada.' };
+  let clave = localStorage.getItem('climaiq_clave_pub') || '';
+  if (!clave) {
+    clave = (prompt('Clave de publicación para guardar la plantilla en la hoja.\n\nEs la misma que usa el Panel Admin para publicar encuestas. Si la dejas vacía, la plantilla se queda solo en este navegador.') || '').trim();
+    if (!clave) return { ok: false, error: 'no se capturó la clave de publicación.' };
+    localStorage.setItem('climaiq_clave_pub', clave);
+  }
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({
+      _op: 'setPlantilla', _clave: clave, sheet: CURRENT_SHEET, plantilla: plantilla > 0 ? plantilla : 0
+    }));
+    const res = await fetch(URL_GAS, { method: 'POST', body: form });
+    const json = await res.json();
+    if (!json.success) return { ok: false, error: json.error || 'la hoja no aceptó el dato.' };
+    PLANTILLA_HOJA = json.plantilla || null;
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || 'falló la conexión.' };
+  }
 }
 
 // Deja el campo de plantilla mostrando lo guardado para la encuesta activa
@@ -528,6 +563,7 @@ async function loadData() {
     if (!json.success) throw new Error(json.error || 'Error desconocido');
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
+    PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
     lastUpdate = new Date();
     if (json.sheet) {
       CURRENT_SHEET = json.sheet;
@@ -566,6 +602,7 @@ async function refresh() {
     if (!json.success) throw new Error(json.error);
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
+    PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
     lastUpdate = new Date();
     renderAll();
     setSt('ok', DATA.length + ' respuestas · ' + lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
@@ -626,6 +663,11 @@ function avg(arr) {
   return n.length ? n.reduce((a,b)=>a+parseFloat(b),0)/n.length : null;
 }
 function r2(n) { return n===null?null:Math.round(n*100)/100; }
+// Una sola escala para todo el sistema, la misma que se imprime en el informe.
+// Antes convivían tres vocabularios para el mismo número: la tarjeta decía
+// "Regular", la escala impresa decía "Atención" y la conclusión "riesgo
+// MODERADO". Quien leía con cuidado veía la contradicción a tres centímetros.
+function nivelDe(v) { return v >= 3 ? 'Satisfactorio' : v >= 2.3 ? 'Atención' : 'Crítico'; }
 function pillClass(s) { return s>=3?'pill-hi':s>=2.3?'pill-md':'pill-lo'; }
 function barColor(s) { return s>=3?'#1A5C3A':s>=2.3?'#8A5210':'#8B2A1F'; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1022,7 +1064,14 @@ function participantes(n) { return n === 1 ? '1 participante' : n + ' participan
 // Plantilla de la empresa, capturada en Configuración. Se guarda por encuesta
 // porque cada empresa tiene su propio número de empleados.
 function clavePlantilla(hoja) { return 'climaiq_plantilla_' + (hoja || CURRENT_SHEET || 'default'); }
+// La plantilla que vino con los datos de la encuesta abierta. Manda sobre la
+// copia local: guardada en la hoja sirve desde cualquier computadora, mientras
+// que la del navegador solo existe en la máquina donde se capturó.
+let PLANTILLA_HOJA = null;
 function getPlantilla(hoja) {
+  if (!hoja || hoja === CURRENT_SHEET) {
+    if (PLANTILLA_HOJA > 0) return PLANTILLA_HOJA;
+  }
   const v = parseInt(localStorage.getItem(clavePlantilla(hoja)) || '', 10);
   return v > 0 ? v : null;
 }
@@ -1086,7 +1135,7 @@ function renderOverview() {
   const gy = 70 - 55*Math.sin(Math.PI - gaugeRad);
 
   // Score level label
-  const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
+  const scoreLabel = nivelDe(global);
   const scoreLabelColor = global>=3?'var(--green)':global>=2.3?'var(--amber)':'var(--red)';
 
   document.getElementById('ovContent').innerHTML = `
@@ -1752,7 +1801,17 @@ El resumen debe tener exactamente esta estructura en UN solo párrafo ejecutivo 
 4. RECOMENDACIÓN: acción concreta prioritaria
 5. FECHA DE REMEDIACIÓN PROPUESTA: plazo sugerido (en meses)
 
-Tono: ejecutivo, directo y elocuente, sin tecnicismos ni lenguaje inflado. Escribe en voz activa. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 135 palabras en un solo párrafo corrido.`;
+Tono: ejecutivo, directo y elocuente, sin tecnicismos ni lenguaje inflado. Escribe en voz activa. USA SIEMPRE ACENTOS Y ORTOGRAFÍA CORRECTA EN ESPAÑOL. NO uses markdown (sin asteriscos, sin #). Máximo 135 palabras en un solo párrafo corrido.
+
+Redacta además el PLAN DE ACCIÓN: entre 4 y 6 acciones para esta empresa en concreto. Reglas del plan:
+- Cada acción sale de lo que dicen estos datos y estos comentarios. Si una acción podría pegarse igual en el informe de cualquier otra empresa, no sirve: reescríbela.
+- Empieza con un verbo y dice qué se hace, no qué se atiende. "Atender la dimensión peor calificada" no es una acción, es repetir el hallazgo.
+- Si el personal reclama un compromiso incumplido, una acción debe cerrarlo: cumplirlo por escrito o declarar formalmente que no se otorgará. Lo que no se puede es dejarlo sin respuesta.
+- Cada acción lleva un responsable propuesto por su PUESTO, nunca por nombre propio, y una fecha propuesta en formato "30 Sep. 2026". Escalona las fechas según la prioridad, tomando como origen la fecha del informe.
+- Prioridad: "Inmediata", "Alta" o "Media".
+
+Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin explicaciones y sin texto antes ni después, con esta forma exacta:
+{"resumen":"el párrafo del resumen ejecutivo","acciones":[{"prioridad":"Inmediata","accion":"...","responsable":"...","fecha":"30 Sep. 2026"}]}`;
 
     const apiKey = localStorage.getItem('climaiq_anthropic_key') || '';
     if (!apiKey) {
@@ -1803,32 +1862,54 @@ Tono: ejecutivo, directo y elocuente, sin tecnicismos ni lenguaje inflado. Escri
         (data.stop_reason === 'max_tokens' ? ' porque se agotó el límite de tokens.' : '.'));
     }
 
-    if (summary) {
-      // Limpiar markdown y texto extra del modelo
-      const cleanSummary = summary
+    // La respuesta debe ser un JSON con el resumen y el plan. Si el modelo lo
+    // envuelve en ```json o le cuelga una frase, se recorta entre la primera
+    // llave y la última. Y si de plano no viene JSON, se usa todo el texto
+    // como resumen y el plan se queda en la reserva: nunca se pierde el informe.
+    const limpiar = function(s) {
+      return String(s || '')
         .replace(/\*\*[^*]*\*\*/g, '')
         .replace(/^#+\s*/gm, '')
         .replace(/RESUMEN EJECUTIVO:?\s*/gi, '')
         .replace(/\n{2,}/g, ' ')
         .trim();
-      window._executiveSummary = cleanSummary;
-    } else {
-      window._executiveSummary = null;
+    };
+
+    let plan = null, textoResumen = summary;
+    const ini = summary.indexOf('{'), fin = summary.lastIndexOf('}');
+    if (ini !== -1 && fin > ini) {
+      try {
+        const obj = JSON.parse(summary.slice(ini, fin + 1));
+        if (obj && obj.resumen) {
+          textoResumen = obj.resumen;
+          if (Array.isArray(obj.acciones) && obj.acciones.length) plan = obj.acciones;
+        }
+      } catch (errJson) {
+        console.warn('La respuesta no venía en JSON, se usa como texto:', errJson);
+      }
     }
+
+    window._executiveSummary = limpiar(textoResumen) || null;
+    window._planAccion = plan;
+    if (!plan) motivoFalla = 'El modelo no devolvió el plan de acción en el formato esperado; el informe sale con el plan de reserva, sin responsable ni fecha.';
   } catch(err) {
     console.warn('No se pudo generar resumen ejecutivo con IA:', err);
     window._executiveSummary = null;
+    window._planAccion = null;
     motivoFalla = err && err.message ? err.message : String(err);
   }
 
   btnPDF.innerHTML = originalText;
   btnPDF.disabled = false;
 
-  // Antes esto se callaba y el PDF salía sin resumen sin avisar
+  // Antes esto se callaba y el PDF salía sin resumen sin avisar. El aviso
+  // distingue entre quedarse sin nada y quedarse solo sin el plan redactado.
   if (motivoFalla) {
+    const parcial = !!window._executiveSummary;
     const seguir = confirm(
-      'No se pudo generar el resumen ejecutivo con IA:\n\n' + motivoFalla +
-      '\n\n¿Genero el informe sin ese resumen? El resto del PDF sale completo.'
+      (parcial ? 'El resumen ejecutivo sí se generó, pero hubo un problema:\n\n'
+               : 'No se pudo generar el resumen ejecutivo con IA:\n\n') + motivoFalla +
+      '\n\n¿Genero el informe de todas formas? El resto del PDF sale completo.'
     );
     if (!seguir) return;
   }
@@ -1864,7 +1945,7 @@ function generarInformePDF() {
   const critAreas = areasPublicables.filter(a=>a.overall<2.3);
   const warnAreas = areasPublicables.filter(a=>a.overall>=2.3&&a.overall<3);
   const goodAreas = areasPublicables.filter(a=>a.overall>=3);
-  const scoreLabel = global>=3.5?'Excelente':global>=3?'Bueno':global>=2.3?'Regular':'Crítico';
+  const scoreLabel = nivelDe(global);
   const companyName = document.getElementById('tbCompany').textContent.replace('· ','') || 'Organización';
   // Obtener logo desde config del Panel Admin
   const _cfg = JSON.parse(localStorage.getItem('climaiq_admin_v2') || '{}');
@@ -1889,63 +1970,43 @@ function generarInformePDF() {
   function newPage() {
     doc.addPage();
     y = 20;
-    // Footer
-    doc.setFillColor(...NAVY);
-    doc.rect(0, 285, W, 12, 'F');
-    doc.setFontSize(7); doc.setTextColor(...WHITE);
-    doc.text('CONFIDENCIAL · Informe de Clima Laboral · ' + companyName, M, 292);
-    doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
-    doc.setTextColor(0,0,0);
   }
 
-  function kpiBox(x, bY, bW, bH, label, value, color) {
-    doc.setFillColor(250,250,248); doc.setDrawColor(...LIGHT);
-    doc.rect(x, bY, bW, bH, 'FD');
-    doc.setFillColor(...color); doc.rect(x, bY, bW, 1.5, 'F');
-    doc.setFontSize(6.5); doc.setTextColor(...GRAY); doc.setFont('helvetica','bold');
-    doc.text(label.toUpperCase(), x+3, bY+6);
-    doc.setFontSize(16); doc.setTextColor(...color); doc.setFont('helvetica','bold');
-    doc.text(String(value), x+3, bY+15);
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-  }
-
-  // ══ PORTADA ══
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, W, 65, 'F');
-  // Accent bar
-  doc.setFillColor(...GOLD);
-  doc.rect(0, 62, W, 3, 'F');
-  // Title
-  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...GOLD);
-  doc.text('INFORME DE CLIMA LABORAL', M, 22);
-  doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  const companyLines = doc.splitTextToSize(companyName, W - M*2);
-  doc.text(companyLines, M, 36);
-  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,195,190);
-  doc.text('Evaluación Interna bajo Marco de Control Interno COSO', M, 46);
   const _plantilla = getPlantilla();
   const _participacion = _plantilla
     ? DATA.length + ' de ' + _plantilla + ' (' + Math.round(DATA.length / _plantilla * 100) + '% de participación)'
     : String(DATA.length);
-  doc.text('Fecha: ' + fechaHoy + '  ·  Participantes: ' + _participacion + '  ·  Áreas: ' + getAreas().length, M, 54);
 
-  // Logo en portada (esquina superior derecha del encabezado)
+  // ══ ENCABEZADO ══
+  // Sin banda oscura. La banda ocupaba 65 mm de la primera hoja y otros 12 mm
+  // de pie en cada página, casi una cuarta parte del informe, para no decir
+  // nada que el texto no dijera. Ese espacio ahora es contenido.
   if (logoData) {
     try {
       const logoFormat = logoData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(logoData, logoFormat, W - 48, 8, 30, 20, '', 'FAST');
+      doc.addImage(logoData, logoFormat, W - M - 30, 14, 30, 18, '', 'FAST');
     } catch(e) { /* logo no disponible */ }
   }
-
-  y = 75;
-
-  // Footer first page
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 285, W, 12, 'F');
-  doc.setFontSize(7); doc.setTextColor(...WHITE);
-  doc.text('CONFIDENCIAL · Informe de Clima Laboral · ' + companyName, M, 292);
-  doc.text('Metodología COSO · ' + fechaHoy, W-M, 292, {align:'right'});
+  doc.setFontSize(19); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+  doc.text(t('INFORME DE CLIMA LABORAL'), M, 24);
+  doc.setFontSize(10.5); doc.setFont('helvetica','bold');
+  const companyLines = doc.splitTextToSize(t(companyName), W - M*2 - (logoData ? 34 : 0));
+  let yEnc = 31;
+  companyLines.forEach(function(l) { doc.text(l, M, yEnc); yEnc += 5.4; });
+  doc.setFontSize(7.4); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+  doc.splitTextToSize(t('Encuesta interna anónima aplicada como prueba del componente Ambiente de Control del marco COSO. Preguntas cerradas en escala 1 (Nunca) a 4 (Siempre), agrupadas en ' +
+    dims.length + ' dimensiones, más comentarios abiertos.'), W - M*2).forEach(function(l) {
+    doc.text(l, M, yEnc); yEnc += 3.6;
+  });
+  doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY); doc.setFontSize(7.6);
+  doc.text(t(fechaHoy + '  ·  CONFIDENCIAL · Uso exclusivo de la Dirección General  ·  Participantes: ' +
+    _participacion + '  ·  Áreas: ' + getAreas().length), M, yEnc + 1.2);
+  yEnc += 4.6;
+  doc.setDrawColor(...NAVY); doc.setLineWidth(1.1);
+  doc.line(M, yEnc, W-M, yEnc);
   doc.setTextColor(0,0,0);
+
+  y = yEnc + 7;
 
   // ═══════════════════════════════════════════════════════════════
   // INFORME EJECUTIVO — dos páginas
@@ -1956,44 +2017,106 @@ function generarInformePDF() {
   const TXT = [44, 42, 40];
   const PIE = 278;                 // por debajo de esto ya es el pie de página
 
+  // Encabezado de sección: versalitas azules espaciadas, sin recuadro. El
+  // recuadro costaba 11 mm por sección y no aportaba jerarquía que la
+  // tipografía no diera sola.
   function tituloBloque(txt) {
-    doc.setFillColor(...LIGHT);
-    doc.rect(M, y, W-M*2, 7, 'F');
-    doc.setDrawColor(...NAVY); doc.setLineWidth(.5);
-    doc.line(M, y, M, y+7);
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
-    doc.text(t(txt.toUpperCase()), M+3, y+4.8);
+    doc.setFontSize(8.6); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.setCharSpace(0.6);
+    doc.text(t(txt.toUpperCase()), M, y + 3);
+    doc.setCharSpace(0);
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    y += 11;
+    y += 7;
   }
 
-  // Fila etiqueta/valor. La etiqueta se envuelve, nunca se recorta.
-  function filaCompacta(etiqueta, valor, color) {
-    const anchoTexto = W - M*2 - 24;
-    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    const lineas = doc.splitTextToSize(t(etiqueta), anchoTexto);
-    lineas.forEach(function(l, i) { doc.text(l, M+2, y + i*4.2); });
-    doc.setFont('helvetica','bold'); doc.setTextColor(...color);
-    doc.text(valor, W-M-2, y, {align:'right'});
+  // Nota al pie de una sección: gris, chica, a todo lo ancho. Es donde el
+  // informe declara de dónde sale cada cosa y qué quedó fuera.
+  function nota(txt, tam) {
+    doc.setFontSize(tam || 6.6); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    doc.splitTextToSize(t(txt), W-M*2).forEach(function(l) { doc.text(l, M, y); y += 3.2; });
     doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    y += lineas.length*4.2 + 1.8;
+    y += 2;
   }
 
-  function subtitulo(txt) {
-    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
-    doc.text(t(txt.toUpperCase()), M, y);
+  function altoNota(txt, tam) {
+    doc.setFontSize(tam || 6.6); doc.setFont('helvetica','italic');
+    return doc.splitTextToSize(t(txt), W-M*2).length * 3.2 + 2;
+  }
+
+  // Tarjeta de cifra: número grande centrado sobre fondo teñido del color de
+  // su nivel, con etiqueta y una línea de contexto debajo.
+  function tarjeta(x, ancho, valor, etiqueta, sub, color) {
+    const tinte = color === RED   ? [252, 244, 242]
+                : color === GREEN ? [242, 248, 244]
+                : color === AMBER ? [253, 247, 238]
+                : [245, 246, 249];
+    doc.setFillColor(...tinte); doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
+    doc.rect(x, y, ancho, 17.5, 'FD');
+    doc.setFontSize(15); doc.setFont('helvetica','bold'); doc.setTextColor(...color);
+    doc.text(t(String(valor)), x + ancho/2, y + 8, {align:'center'});
+    // La etiqueta se encoge hasta caber en su tarjeta. Con tamaño fijo,
+    // "DIMENSIONES EN NIVEL CRÍTICO" se salía e invadía la tarjeta vecina.
+    doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
+    const txtEtq = t(etiqueta.toUpperCase());
+    let tamEtq = 5.6, espEtq = 0.3;
+    while (tamEtq > 3.8) {
+      doc.setFontSize(tamEtq); doc.setCharSpace(espEtq);
+      if (doc.getTextWidth(txtEtq) + espEtq * txtEtq.length <= ancho - 4) break;
+      if (espEtq > 0) { espEtq = 0; continue; }
+      tamEtq -= 0.3;
+    }
+    doc.text(txtEtq, x + ancho/2, y + 12.3, {align:'center'});
+    doc.setCharSpace(0);
+    if (sub) {
+      doc.setFont('helvetica','normal');
+      let tamSub = 5.6;
+      doc.setFontSize(tamSub);
+      while (tamSub > 3.8 && doc.getTextWidth(t(sub)) > ancho - 4) { tamSub -= 0.3; doc.setFontSize(tamSub); }
+      doc.text(t(sub), x + ancho/2, y + 15.5, {align:'center'});
+    }
     doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    y += 4.5;
   }
 
-  function centrado(txt, tam, color) {
-    doc.setFontSize(tam); doc.setFont('helvetica','normal'); doc.setTextColor(...color);
-    doc.splitTextToSize(t(txt), W-M*2).forEach(function(l) {
-      doc.text(l, W/2, y, {align:'center'}); y += 4;
-    });
+  // Barra horizontal por dimensión. Con el número solo, el lector tenía que
+  // comparar de memoria; la barra deja ver la magnitud de un vistazo.
+  function barraDim(etiqueta, valor) {
+    const xEtq = M + 48;
+    const xBar = xEtq + 3;
+    const anchoBar = W - M - 13 - xBar;
+    doc.setFontSize(7.2); doc.setFont('helvetica','bold'); doc.setTextColor(...TXT);
+    doc.text(t(sf(etiqueta, 32)), xEtq, y + 2.9, {align:'right'});
+    doc.setFillColor(237, 235, 231); doc.rect(xBar, y, anchoBar, 3.4, 'F');
+    doc.setFillColor(...colorDe(valor)); doc.rect(xBar, y, anchoBar * (valor / 4), 3.4, 'F');
+    doc.setFont('helvetica','bold'); doc.setTextColor(...colorDe(valor));
+    doc.text(valor.toFixed(2), W - M, y + 2.9, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += 5.4;
+  }
+
+  // Caja de área: nombre y participantes a la izquierda, calificación a la
+  // derecha. Van de dos en dos por renglón.
+  function cajaArea(x, ancho, a) {
+    doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
+    doc.rect(x, y, ancho, 8.4, 'D');
+    doc.setFontSize(7.6); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    const nombre = t(sf(a.area, 24));
+    doc.text(nombre, x + 3, y + 5.4);
+    const anchoNombre = doc.getTextWidth(nombre);
+    doc.setFont('helvetica','normal'); doc.setFontSize(6.8); doc.setTextColor(...GRAY);
+    doc.text(t(' · ' + participantes(a.count)), x + 3 + anchoNombre, y + 5.4);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...colorDe(a.overall));
+    doc.text(a.overall.toFixed(2), x + ancho - 3, y + 5.6, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
   }
 
   const colorDe = v => v>=3 ? GREEN : v>=2.3 ? AMBER : RED;
+
+  // Cuántos comentarios abiertos se recibieron. Se cuenta aquí porque es una
+  // de las cifras clave de la primera hoja, aunque se citen en la segunda.
+  const _esComentario = s => String(s || '').trim().length > 10 && String(s).trim().toLowerCase() !== 'na';
+  const voces0 = DATA.reduce(function(n, d) {
+    return n + (_esComentario(d.propuesta) ? 1 : 0) + (_esComentario(d.observaciones) ? 1 : 0);
+  }, 0);
 
   // ── PÁGINA 1 · RESUMEN EJECUTIVO ──────────────────────────────
   tituloBloque('Resumen ejecutivo');
@@ -2010,163 +2133,254 @@ function generarInformePDF() {
         : '') +
      'Bajo el Marco COSO, estos resultados inciden en el Ambiente de Control que sustenta el sistema de control interno de la organización.');
 
-  // El recuadro no puede crecer sin límite o empujaría el resto fuera de la
-  // primera hoja. Si el texto viene largo se achica la letra, nunca se recorta.
+  // El resumen ya no vive en un recuadro: va como párrafo, a todo lo ancho.
+  // Si viene más largo de lo pedido se achica la letra, nunca se recorta.
   doc.setFont('helvetica','normal');
-  let tamResumen = 9, interResumen = 5, lineasResumen = [];
+  let tamResumen = 8.6, interResumen = 4.7, lineasResumen = [];
   while (true) {
     doc.setFontSize(tamResumen);
-    lineasResumen = doc.splitTextToSize(t(resumenTexto), W-M*2-12);
-    interResumen = tamResumen * 0.56;
-    if (lineasResumen.length * interResumen <= 64 || tamResumen <= 6.5) break;
-    tamResumen -= 0.5;
+    lineasResumen = doc.splitTextToSize(t(resumenTexto), W-M*2);
+    interResumen = tamResumen * 0.55;
+    if (lineasResumen.length * interResumen <= 58 || tamResumen <= 6.5) break;
+    tamResumen -= 0.4;
   }
-  const altoCaja = lineasResumen.length*interResumen + 9;
-  doc.setFillColor(250,249,246); doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
-  doc.rect(M, y, W-M*2, altoCaja, 'FD');
-  doc.setFillColor(...GOLD); doc.rect(M, y, 1.6, altoCaja, 'F');
   doc.setTextColor(...TXT);
-  lineasResumen.forEach(function(l, i) { doc.text(l, M+7, y + 6.5 + i*interResumen); });
-  y += altoCaja + 8;
+  lineasResumen.forEach(function(l) { doc.text(l, M, y); y += interResumen; });
+  y += 5;
 
   // ── PÁGINA 1 · CIFRAS CLAVE ───────────────────────────────────
   tituloBloque('Cifras clave');
-  const kpiW = (W - M*2 - 6) / 4;
-  kpiBox(M,          y, kpiW, 20, 'Score Global',   global.toFixed(2), colorDe(global));
-  kpiBox(M+kpiW+2,   y, kpiW, 20, 'Positivas',      positivePct+'%',   GREEN);
-  kpiBox(M+kpiW*2+4, y, kpiW, 20, 'Negativas',      negativePct+'%',   RED);
-  kpiBox(M+kpiW*3+6, y, kpiW, 20, 'Alertas',        totalAlerts,       totalAlerts>0?RED:GREEN);
-  y += 24;
+  const kpiW = (W - M*2 - 9) / 4;
+  tarjeta(M,            kpiW, global.toFixed(2), 'Calificación global', 'Nivel: ' + scoreLabel.toUpperCase(), colorDe(global));
+  tarjeta(M+kpiW+3,     kpiW, _plantilla ? DATA.length + ' de ' + _plantilla : String(DATA.length),
+          _plantilla ? 'Participación: ' + Math.round(DATA.length/_plantilla*100) + '%' : 'Participantes',
+          _plantilla ? 'de la plantilla registrada' : getAreas().length + ' áreas', NAVY);
+  tarjeta(M+kpiW*2+6,   kpiW, critDims.length + ' de ' + dims.length, 'Dimensiones en nivel crítico',
+          critDims.length ? 'califican por debajo de 2.3' : 'ninguna por debajo de 2.3',
+          critDims.length ? RED : GREEN);
+  tarjeta(M+kpiW*3+9,   kpiW, String(voces0), 'Comentarios abiertos', 'recibidos del personal', NAVY);
+  y += 21;
 
-  const lvlColor = colorDe(global);
-  doc.setFillColor(...lvlColor); doc.rect(M, y-3.4, 54, 5.2, 'F');
-  doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  doc.text(t('NIVEL: ' + scoreLabel.toUpperCase()), M+27, y, {align:'center'});
-  doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY);
-  doc.text(t('Escala 1 (Nunca) a 4 (Siempre) · Crítico < 2.3 · Atención 2.3 a 3.0 · Satisfactorio >= 3.0'), W-M, y, {align:'right'});
-  doc.setTextColor(0,0,0);
-  y += 10;
+  nota('Escala única del informe: Crítico menos de 2.3 · Atención de 2.3 a 3.0 · Satisfactorio 3.0 o más. ' +
+    (_plantilla
+      ? 'La plantilla registrada es de ' + _plantilla + ' personas; con ' + DATA.length + ' respuestas, la participación es de ' + Math.round(DATA.length/_plantilla*100) + '%.'
+      : 'No se capturó la plantilla de la empresa, así que este informe no reporta tasa de participación.') +
+    ' Las respuestas negativas ' + (negativePct > positivePct ? 'superan a las positivas' : 'no superan a las positivas') +
+    ', ' + negativePct + '% contra ' + positivePct + '%, sin punto neutro en la escala.');
 
-  // ── PÁGINA 1 · DÓNDE ESTÁ EL RIESGO ───────────────────────────
-  tituloBloque('Dónde está el riesgo');
-
-  // Cuánto ocuparía una fila, para no escribir más de lo que cabe en la hoja
-  function altoFila(etiqueta) {
-    doc.setFontSize(8);
-    return doc.splitTextToSize(t(etiqueta), W-M*2-24).length * 4.2 + 1.8;
-  }
-
-  subtitulo('Por área');
+  // ── PÁGINA 1 · POR ÁREA Y POR DIMENSIÓN ───────────────────────
+  // Las dos secciones se reparten lo que queda de la primera hoja. Antes las
+  // dimensiones tomaban su espacio primero y con doce áreas el informe llegó a
+  // mostrar una sola: ahora cada sección tiene un mínimo y el sobrante se
+  // reparte en proporción a lo que cada una necesita. Lo que no cabe se dice.
   const areasOrdenadas = areasPublicables.slice().sort((a,b) => a.overall - b.overall);
-  const areasMostradas = [];
-  let cupoA = y;
-  areasOrdenadas.forEach(function(a) {
-    const alto = altoFila(a.area + '   (' + participantes(a.count) + ')');
-    if (cupoA + alto > PIE - 44) return;   // se reservan 44 mm para las dimensiones
-    cupoA += alto;
-    areasMostradas.push(a);
-  });
-  areasMostradas.forEach(function(a) {
-    filaCompacta(a.area + '   (' + participantes(a.count) + ')', a.overall.toFixed(2), colorDe(a.overall));
-  });
-  if (areasMostradas.length < areasOrdenadas.length) {
-    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-    doc.text(t('Se listan las ' + areasMostradas.length + ' áreas de menor calificación, de ' + areasOrdenadas.length + '. El detalle completo está en la versión Word.'), M+2, y);
-    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    y += 4;
-  }
-  if (areasReservadas.length > 0) {
-    doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-    doc.splitTextToSize(t('No se desglosa ' + (areasReservadas.length===1?'1 área':areasReservadas.length+' áreas') +
-      ' con menos de ' + MIN_ANONIMATO + ' respuestas: el resultado identificaría a quien contestó. Sus respuestas sí cuentan en las cifras globales.'),
-      W-M*2).forEach(function(l) { doc.text(l, M+2, y); y += 3.4; });
-    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-  }
-  y += 4;
-
-  // Con nombres cortos caben todas las dimensiones en dos columnas, de peor a
-  // mejor. El texto íntegro de cada pregunta va en la versión Word.
-  subtitulo('Por dimensión, de menor a mayor calificación');
   const todasDims = dims.slice().sort((a,b) => a.avg - b.avg);
   const bajas = todasDims.filter(d => d.avg < 3);
+  const anchoCaja = (W - M*2 - 4) / 2;
+  const ALTO_AREA = 10.4, ALTO_DIM = 5.4;
 
-  const anchoCol = (W - M*2 - 8) / 2;
-  const altoRen = 5.2;
-  const filasQueCaben = Math.max(1, Math.floor((PIE - 8 - y) / altoRen));
-  const mostradas = todasDims.slice(0, filasQueCaben * 2);
-  const filas = Math.ceil(mostradas.length / 2);
+  const notaReserva = areasReservadas.length > 0
+    ? 'No se desglosa ' + (areasReservadas.length===1?'1 área':areasReservadas.length+' áreas') +
+      ' con menos de ' + MIN_ANONIMATO + ' respuestas: el resultado identificaría a quien contestó. Sus respuestas sí cuentan en las cifras globales.'
+    : '';
+  const notaDimsBase = 'Nombres abreviados; el texto completo de cada pregunta está en la versión Word.';
 
-  mostradas.forEach(function(d, i) {
-    const col  = i < filas ? 0 : 1;
-    const fila = i < filas ? i : i - filas;
-    const x  = M + col * (anchoCol + 8);
-    const yy = y + fila * altoRen;
-    doc.setFontSize(7.8); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    doc.text(t(sf(nombreCorto(d.label), 32)), x + 1, yy);
-    doc.setFont('helvetica','bold'); doc.setTextColor(...colorDe(d.avg));
-    doc.text(d.avg.toFixed(2), x + anchoCol - 1, yy, {align:'right'});
+  const espacio = (PIE - 4) - y - 14 - altoNota(notaReserva || 'x') - altoNota(notaDimsBase);
+  const necesitaAreas = Math.ceil(areasOrdenadas.length / 2) * ALTO_AREA;
+  const necesitaDims  = todasDims.length * ALTO_DIM;
+  let filasAreas, cupoDims;
+  if (necesitaAreas + necesitaDims <= espacio) {
+    filasAreas = Math.ceil(areasOrdenadas.length / 2);
+    cupoDims   = todasDims.length;
+  } else {
+    const parteAreas = Math.max(2 * ALTO_AREA, espacio * (necesitaAreas / (necesitaAreas + necesitaDims)));
+    filasAreas = Math.max(1, Math.floor(Math.min(parteAreas, necesitaAreas) / ALTO_AREA));
+    cupoDims   = Math.max(4, Math.floor((espacio - filasAreas * ALTO_AREA) / ALTO_DIM));
+  }
+  const areasMostradas = areasOrdenadas.slice(0, filasAreas * 2);
+  const mostradas = todasDims.slice(0, cupoDims);
+
+  tituloBloque('Por área');
+  areasMostradas.forEach(function(a, i) {
+    cajaArea(M + (i % 2) * (anchoCaja + 4), anchoCaja, a);
+    if (i % 2 === 1 || i === areasMostradas.length - 1) y += ALTO_AREA;
   });
-  doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-  y += filas * altoRen + 2;
+  y += 1;
 
-  doc.setFontSize(6.8); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-  const notaDims = mostradas.length < todasDims.length
-    ? 'Se listan ' + mostradas.length + ' de ' + todasDims.length + ' dimensiones. El texto completo de cada pregunta y el detalle restante están en la versión Word.'
-    : 'Nombres abreviados. El texto completo de cada pregunta está en la versión Word.';
-  doc.text(t(notaDims), M+1, y);
-  doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-  y += 4;
+  const avisos = [];
+  if (areasMostradas.length < areasOrdenadas.length) {
+    avisos.push('Se ' + (areasMostradas.length === 1 ? 'lista 1 área' : 'listan las ' + areasMostradas.length + ' áreas') +
+      ' de menor calificación, de ' + areasOrdenadas.length + '; el resto va en la versión Word.');
+  }
+  if (notaReserva) avisos.push(notaReserva);
+  if (avisos.length) nota(avisos.join(' '));
+
+  tituloBloque('Por dimensión, de menor a mayor');
+  mostradas.forEach(function(d) { barraDim(nombreCorto(d.label), d.avg); });
+  y += 1.5;
+
+  nota(mostradas.length < todasDims.length
+    ? 'Se ' + (mostradas.length === 1 ? 'muestra 1 dimensión' : 'muestran ' + mostradas.length + ' dimensiones') +
+      ' de ' + todasDims.length + ', de menor a mayor calificación; las restantes van en la versión Word. ' + notaDimsBase
+    : notaDimsBase);
 
   // ── PÁGINA 2 ──────────────────────────────────────────────────
   newPage();
 
   tituloBloque('Lo que dice el personal');
 
-  // Voces con su área, salvo cuando el área es tan chica que identificaría
-  // a quien escribió. Mismo criterio que la sección de áreas.
+  // Las citas van sin área. La hoja no guarda el área de cada comentario, y
+  // en un área de tres personas la etiqueta apuntaba a quien escribió: se
+  // protegía el promedio por área y se entregaba el nombre en la cita.
   const voces = [];
   DATA.forEach(function(d) {
-    const areaObj = areas.filter(function(a) { return a.area === d.area; })[0];
-    const areaVisible = (areaObj && areaObj.count >= MIN_ANONIMATO) ? d.area : null;
     [['Propuesta de mejora', d.propuesta], ['Observación', d.observaciones]].forEach(function(par) {
       const txt = String(par[1] || '').trim();
       if (txt.length > 10 && txt.toLowerCase() !== 'na') {
-        voces.push({ tipo: par[0], area: areaVisible, texto: txt });
+        voces.push({ tipo: par[0], texto: txt });
       }
     });
   });
 
-  const RESERVA = 132;          // mm que se apartan para conclusión, acciones y pie
-  const topeVoces = PIE - RESERVA;
+  // Cuando no cabe todo, primero lo que señala riesgo. Antes se citaba por
+  // orden de captura y los comentarios delicados quedaban fuera sin que nadie
+  // lo notara: el aviso decía cuántos faltaban, nunca de qué trataban.
+  const TEMAS_RIESGO = [
+    { etiqueta: 'hostigamiento o trato al personal', claves: ['hostig','acoso','amenaz','humill','discrimin','grosero','falta de respeto','chisme','maltrat','gritos'] },
+    { etiqueta: 'compromisos incumplidos',           claves: ['prometi','promesa','compromiso','se nos dijo','no se ha cumplido','hospedaje','alimentacion','viatic','reubicac','traslado','aumento','sueldo','pago','no cumpl'] },
+    { etiqueta: 'señalamientos a jefaturas',         claves: ['jefe','jefa','gerente','supervisor','lider','encargado','coordinador','direccion','actitud'] },
+    { etiqueta: 'seguridad o riesgo operativo',      claves: ['riesgo','peligro','accidente','seguridad','proteccion','herramienta','refaccion','diagnostico'] },
+    { etiqueta: 'rotación y salidas',                 claves: ['renunc','rotacion','se van','despid','sacar a las personas','baja'] }
+  ];
+  const _plano = function(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  };
+  voces.forEach(function(v, i) {
+    const p = _plano(v.texto);
+    v.temas = TEMAS_RIESGO.filter(function(tm) {
+      return tm.claves.some(function(c) { return p.indexOf(c) !== -1; });
+    }).map(function(tm) { return tm.etiqueta; });
+    v.orden = i;
+  });
+  voces.sort(function(a, b) {
+    if (b.temas.length !== a.temas.length) return b.temas.length - a.temas.length;
+    return a.orden - b.orden;
+  });
+
+  // ── PRESUPUESTO DE LA PÁGINA 2 ────────────────────────────────
+  // La reserva era un número fijo de 132 mm calculado para las acciones de
+  // plantilla. Con el plan redactado por la IA, que trae responsable y fecha,
+  // el bloque creció y el cierre acabó impreso encima de la barra del pie.
+  // Ahora se mide lo que de verdad ocupan conclusión y acciones, y las citas
+  // reciben lo que sobre: nada se dibuja sobre nada.
+  const CIERRE = 277;           // por debajo de esto ya es el pie de página
+
+  const conclusionTexto = 'El clima laboral de ' + companyName + ' se ubica en nivel ' + scoreLabel.toUpperCase() +
+    ' conforme a la escala de este informe, y en esa medida compromete la continuidad operativa y la retención del talento. ' +
+    (totalAlerts > 0
+      ? 'Con ' + totalAlerts + (totalAlerts === 1 ? ' alerta crítica activa y ' : ' alertas críticas activas y ')
+      : 'Sin alertas críticas activas y con ') +
+    negativePct + '% de respuestas en niveles negativos, enseguida se propone un plan de acción con responsable y fecha sugeridos para cada punto. Corresponde a la Dirección General confirmarlos o ajustarlos, y verificar su avance con una segunda medición.';
+
+  // El plan lo redacta la misma llamada que escribe el resumen ejecutivo, con
+  // responsable y fecha propuestos para cada punto: una acción sin dueño ni
+  // plazo le devuelve el trabajo a quien recibe el informe. Si esa llamada
+  // falla, entra el plan de reserva y el informe nunca sale sin acciones.
+  const planIA = (window._planAccion || []).filter(function(a) { return a && a.accion; });
+  let acciones;
+  if (planIA.length) {
+    acciones = planIA.map(function(a) {
+      const p = String(a.prioridad || '').toLowerCase();
+      return {
+        prioridad: p.indexOf('inmediat') === 0 ? 'Inmediata' : p.indexOf('alta') === 0 ? 'Alta' : 'Media',
+        accion: String(a.accion),
+        responsable: String(a.responsable || '').trim(),
+        fecha: String(a.fecha || '').trim()
+      };
+    });
+  } else {
+    acciones = [];
+    if (critAreasTodas.length > 0) {
+      acciones.push({ prioridad:'Inmediata', accion:'Intervenir ' + (critAreasTodas.length===1?'el área':'las '+critAreasTodas.length+' áreas') +
+        ' con calificación crítica mediante entrevistas dirigidas.', responsable:'', fecha:'' });
+    }
+    if (bajas.length > 0) {
+      acciones.push({ prioridad:'Inmediata', accion:'Levantar un plan específico para la dimensión peor calificada, ' + nombreCorto(bajas[0].label) + ' (' + bajas[0].avg.toFixed(2) + '), con acuerdos verificables.', responsable:'', fecha:'' });
+    }
+    acciones.push({ prioridad:'Alta', accion:'Formalizar y difundir el organigrama y las descripciones de puesto, con límites claros de responsabilidad por área.', responsable:'', fecha:'' });
+    acciones.push({ prioridad:'Alta', accion:'Establecer un programa de desarrollo para mandos medios en liderazgo, comunicación y asignación de cargas de trabajo.', responsable:'', fecha:'' });
+    acciones.push({ prioridad:'Media', accion:'Comunicar los resultados al personal y publicar el plan de mejora comprometido, con avances visibles.', responsable:'', fecha:'' });
+    acciones.push({ prioridad:'Media', accion:'Repetir la medición en un plazo no mayor a seis meses para verificar el efecto de las acciones.', responsable:'', fecha:'' });
+  }
+  const ordenPrioridad = { 'Inmediata':0, 'Alta':1, 'Media':2 };
+  acciones.sort(function(a, b) { return ordenPrioridad[a.prioridad] - ordenPrioridad[b.prioridad]; });
+  acciones = acciones.slice(0, 6);
+
+  // Medir. Cada bloque se parte una sola vez y esas mismas líneas son las que
+  // se dibujan después: volver a partirlas daría un conteo distinto.
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  const lineasConclusion = doc.splitTextToSize(t(conclusionTexto), W-M*2);
+  const altoConclusion = 8 + lineasConclusion.length * 5 + 6;
+
+  doc.setFontSize(8.4); doc.setFont('helvetica','normal');
+  acciones.forEach(function(a) {
+    a._lineas = doc.splitTextToSize(t(a.accion), W-M*2-23);
+    a._alto = Math.max(a._lineas.length * 4.4, 4.8) + ((a.responsable || a.fecha) ? 3.2 : 0) + 2.6;
+  });
+  const altoDe = function(lista) {
+    return 8 + lista.reduce(function(s, a) { return s + a._alto; }, 0);
+  };
+
+  // Si el plan no cabe ni dejando las citas en cero, salen las de menor
+  // prioridad y el informe lo dice. Recortar en silencio no es opción.
+  let accionesFuera = 0;
+  while (acciones.length > 2 && y + 10 + altoConclusion + altoDe(acciones) > CIERRE - 4) {
+    acciones.pop();
+    accionesFuera++;
+  }
+
+  const topeVoces = CIERRE - 4 - altoConclusion - altoDe(acciones) - 9;
   let incluidas = 0;
 
   for (let vi = 0; vi < voces.length; vi++) {
     const v = voces[vi];
-    const recortado = v.texto.length > 300
-      ? v.texto.slice(0, 300).replace(/\s+\S*$/, '') + '…'
+    const recortado = v.texto.length > 320
+      ? v.texto.slice(0, 320).replace(/\s+\S*$/, '') + '…'
       : v.texto;
-    const cita = '“' + recortado + '”';
-    doc.setFontSize(8.2); doc.setFont('helvetica','italic');
-    const lineas = doc.splitTextToSize(t(cita), W-M*2-9);
-    const alto = 4 + lineas.length*4.4 + 4;
+    const cita = '“' + recortado.replace(/\s*\n+\s*/g, ' ') + '”';
+    doc.setFontSize(7.6); doc.setFont('helvetica','italic');
+    const lineas = doc.splitTextToSize(t(cita), W-M*2-8);
+    const alto = 4.4 + lineas.length*3.9 + 3;
     if (y + alto > topeVoces) break;
 
-    doc.setFillColor(...LIGHT);
-    doc.rect(M, y-3, 1.3, alto-3, 'F');
-    doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
-    doc.text(t((v.tipo + (v.area ? ' · ' + v.area : '')).toUpperCase()), M+5, y);
-    y += 4;
-    doc.setFontSize(8.2); doc.setFont('helvetica','italic'); doc.setTextColor(...TXT);
-    lineas.forEach(function(l) { doc.text(l, M+5, y); y += 4.4; });
+    // Caja a todo lo ancho, con el fondo alternado para separar una cita de
+    // la siguiente. Ocupa menos que la barra lateral y respira igual.
+    doc.setFillColor(...(incluidas % 2 === 0 ? [248, 247, 244] : [252, 251, 249]));
+    doc.rect(M, y - 3.4, W-M*2, alto, 'F');
+    doc.setFontSize(5.9); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+    doc.setCharSpace(0.3);
+    doc.text(t(v.tipo.toUpperCase()), M+4, y);
+    doc.setCharSpace(0);
+    y += 4.2;
+    doc.setFontSize(7.6); doc.setFont('helvetica','italic'); doc.setTextColor(...TXT);
+    lineas.forEach(function(l) { doc.text(l, M+4, y); y += 3.9; });
     doc.setFont('helvetica','normal');
-    y += 4;
+    y += 2.8;
     incluidas++;
   }
 
   if (incluidas < voces.length) {
+    // El aviso dice de qué tratan los que no cupieron, no solo cuántos son:
+    // así el director sabe si lo que falta por leer puede esperar.
+    const fuera = voces.slice(incluidas);
+    const temasFuera = [];
+    fuera.forEach(function(v) {
+      v.temas.forEach(function(tm) { if (temasFuera.indexOf(tm) === -1) temasFuera.push(tm); });
+    });
     doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
-    doc.splitTextToSize(t('Se transcriben ' + incluidas + ' de ' + voces.length + ' comentarios recibidos. Los ' +
-      (voces.length - incluidas) + ' restantes se incluyen íntegros en la versión Word de este informe.'),
+    doc.splitTextToSize(t('Se transcriben ' + incluidas + ' de ' + voces.length + ' comentarios recibidos, empezando por los que señalan riesgo. Los ' +
+      (voces.length - incluidas) + ' restantes se incluyen íntegros en la versión Word' +
+      (temasFuera.length ? ' y tratan de: ' + temasFuera.join('; ') + '.' : '.')),
       W-M*2).forEach(function(l) { doc.text(l, M, y); y += 3.6; });
     doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
     y += 2;
@@ -2175,52 +2389,61 @@ function generarInformePDF() {
 
   // ── PÁGINA 2 · CONCLUSIÓN ─────────────────────────────────────
   tituloBloque('Conclusión');
-  const nivelRiesgo = global < 2.3 ? 'ALTO' : global < 3 ? 'MODERADO' : 'BAJO';
-  const conclusionTexto = 'El clima laboral de ' + companyName + ' configura un escenario de riesgo ' + nivelRiesgo +
-    ' para la continuidad operativa y la retención del talento. ' +
-    (totalAlerts > 0
-      ? 'Con ' + totalAlerts + ' alerta(s) crítica(s) activa(s) y '
-      : 'Sin alertas críticas activas y con ') +
-    negativePct + '% de respuestas en niveles negativos, corresponde a la Dirección General instruir un plan de acción con responsable y fecha compromiso por cada punto señalado, y verificar su avance con una segunda medición.';
   doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-  doc.splitTextToSize(t(conclusionTexto), W-M*2).forEach(function(l) { doc.text(l, M, y); y += 5; });
+  lineasConclusion.forEach(function(l) { doc.text(l, M, y); y += 5; });
   y += 6;
 
   // ── PÁGINA 2 · ACCIONES ───────────────────────────────────────
   tituloBloque('Acciones recomendadas');
-  const acciones = [];
-  if (critAreasTodas.length > 0) {
-    acciones.push(['Inmediata', 'Intervenir ' + (critAreasTodas.length===1?'el área':'las '+critAreasTodas.length+' áreas') +
-      ' con calificación crítica mediante entrevistas dirigidas y plan de acción con responsable y fecha.']);
-  }
-  if (bajas.length > 0) {
-    acciones.push(['Inmediata', 'Atender la dimensión peor calificada: ' + nombreCorto(bajas[0].label) + ' (' + bajas[0].avg.toFixed(2) + ').']);
-  }
-  acciones.push(['Alta', 'Formalizar y difundir el organigrama y las descripciones de puesto, con límites claros de responsabilidad por área.']);
-  acciones.push(['Alta', 'Establecer un programa de desarrollo para mandos medios en liderazgo, comunicación y asignación de cargas de trabajo.']);
-  acciones.push(['Media', 'Comunicar los resultados al personal y publicar el plan de mejora comprometido, con avances visibles.']);
-  acciones.push(['Media', 'Repetir la medición en un plazo no mayor a seis meses para verificar el efecto de las acciones.']);
 
-  acciones.slice(0, 6).forEach(function(a) {
-    const cChip = a[0]==='Inmediata' ? RED : a[0]==='Alta' ? AMBER : NAVY;
-    doc.setFillColor(...cChip); doc.rect(M, y-3.2, 19, 4.8, 'F');
-    doc.setFontSize(5.8); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-    doc.text(t(a[0].toUpperCase()), M+9.5, y, {align:'center'});
-    doc.setFontSize(8.4); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
-    const lineas = doc.splitTextToSize(t(a[1]), W-M*2-23);
-    lineas.forEach(function(l, i) { doc.text(l, M+22, y + i*4.4); });
-    y += Math.max(lineas.length*4.4, 4.8) + 2.6;
+  acciones.forEach(function(a) {
+    const cChip = a.prioridad==='Inmediata' ? RED : a.prioridad==='Alta' ? AMBER : NAVY;
+    doc.setFillColor(...cChip); doc.roundedRect(M, y-3.3, 21, 4.9, 2.4, 2.4, 'F');
+    doc.setFontSize(5.7); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+    doc.text(t(a.prioridad.toUpperCase()), M+10.5, y, {align:'center'});
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    a._lineas.forEach(function(l, i) { doc.text(l, M+24, y + i*4.2); });
+    y += Math.max(a._lineas.length*4.2, 4.9);
+    if (a.responsable || a.fecha) {
+      // Pegada a su propia acción, no a la de abajo: antes quedaba a la misma
+      // altura que la etiqueta siguiente y se leía como si fuera de esa.
+      doc.setFontSize(6.6); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+      doc.text(t('Fecha y responsable propuestos: ' + [a.fecha, a.responsable].filter(Boolean).join(' · ')), M+24, y - 0.6);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+      y += 3.4;
+    }
+    y += 1.8;
   });
 
-  // ── PIE DE CIERRE ─────────────────────────────────────────────
-  y = Math.max(y + 6, 262);
-  doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
-  doc.line(M, y, W-M, y);
-  y += 5;
-  centrado('Base: ' + DATA.length + ' respuestas de ' + getAreas().length + ' áreas' +
-    (_plantilla ? ' sobre una plantilla de ' + _plantilla + ' personas' : '') +
-    ' · Marco de Control Interno COSO · ' + fechaHoy, 7, GRAY);
-  centrado('Documento confidencial de uso exclusivo de la Dirección General. La evidencia cualitativa completa se anexa en la versión Word.', 7, GRAY);
+  if (accionesFuera > 0) {
+    doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(...GRAY);
+    doc.text(t('Se listan ' + acciones.length + ' de ' + (acciones.length + accionesFuera) +
+      ' acciones propuestas, de mayor a menor prioridad. Las restantes van en la versión Word.'), M, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...TXT);
+    y += 4;
+  }
+
+  // ── PIES DE PÁGINA ────────────────────────────────────────────
+  // Se pintan al final, cuando ya se sabe cuántas páginas hay, para poder
+  // numerarlas. Antes eran una banda azul de 12 mm por página que solo
+  // repetía el nombre de la empresa.
+  const totalPaginas = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPaginas; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...LIGHT); doc.setLineWidth(.3);
+    doc.line(M, 283, W-M, 283);
+    doc.setFontSize(6.4); doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY);
+    if (p === totalPaginas) {
+      doc.text(t('Base: ' + DATA.length + ' respuestas de ' + getAreas().length + ' áreas' +
+        (_plantilla ? ', ' + Math.round(DATA.length/_plantilla*100) + '% de una plantilla de ' + _plantilla + ' personas' : '') +
+        ' · Prueba del Ambiente de Control, marco COSO · ' + fechaHoy), W/2, 287.4, {align:'center'});
+      doc.text(t('Documento confidencial de uso exclusivo de la Dirección General. La evidencia cualitativa completa se anexa en la versión Word. · Página ' +
+        p + ' de ' + totalPaginas), W/2, 290.8, {align:'center'});
+    } else {
+      doc.text(t('Informe de clima laboral · ' + companyName + ' · ' + fechaHoy + ' · CONFIDENCIAL · Página ' + p + ' de ' + totalPaginas),
+        W/2, 288.6, {align:'center'});
+    }
+  }
   doc.setTextColor(0,0,0);
 
   // Save
@@ -2263,7 +2486,7 @@ async function generarInformeWord() {
   const critDims  = dims.filter(d => d.avg < 2.3);
   const warnDims  = dims.filter(d => d.avg >= 2.3 && d.avg < 3);
   const goodDims  = dims.filter(d => d.avg >= 3);
-  const scoreLabel = GLOBAL >= 3.5 ? 'Excelente' : GLOBAL >= 3 ? 'Bueno' : GLOBAL >= 2.3 ? 'Regular' : 'Crítico';
+  const scoreLabel = nivelDe(GLOBAL);
   const totalAlerts = critDims.length + critAreasTodas.length;
   const plantillaW = getPlantilla();
 
@@ -2535,6 +2758,7 @@ async function loadSheet(sheetName) {
     if (!json.success) throw new Error(json.error || 'Error');
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
+    PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
     lastUpdate = new Date();
     document.getElementById('tbCompany').textContent = '· ' + sheetName;
     document.getElementById('btnPDF').disabled = false;
