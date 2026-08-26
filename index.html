@@ -51,6 +51,17 @@ p{color:var(--ink3);font-size:.92rem;}
 </div>
 
 <script>
+// TODO el cargador vive dentro de esta función, y no es un adorno.
+//
+// document.open() borra la página pero NO borra las variables de JavaScript.
+// La encuesta que se escribe después declara sus propias APPS_SCRIPT_URL y
+// escHtml; si el cargador las hubiera dejado sueltas en el ámbito global, la
+// segunda declaración revienta con "Identifier has already been declared" y
+// se cae el script COMPLETO de la encuesta. El formulario se sigue viendo,
+// porque es HTML estático, pero el botón Enviar se queda sin nada enganchado:
+// la persona contesta, presiona, y su respuesta no se guarda ni avisa.
+// Así se perdieron respuestas de Arrendadora.
+(function () {
 // Mismo despliegue que usan la encuesta y el dashboard.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNnPykTYJc2v3UlGyBkecxgC5geHaQYwE5KfMfQxA7L1gNFihDjM2_D9NNpKuWwiIJ/exec';
 
@@ -96,6 +107,7 @@ async function abrirEncuesta() {
 }
 
 abrirEncuesta();
+})();
 </script>
 </body>
 </html>
