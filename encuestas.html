@@ -333,6 +333,7 @@ async function abrir(hoja) {
         '</div>' +
         '<p class="sub" style="margin-top:9px">Se guarda junto a las respuestas, no en este navegador. ' +
           'Es la base de la tasa de participación del informe.</p>' +
+        '<div id="avisoClave"></div>' +
       '</div>' +
 
       (liga ?
@@ -375,6 +376,18 @@ async function abrir(hoja) {
   };
 }
 
+// Un aviso dentro de la pantalla, con la salida a la mano. Nunca una ventanita
+// del navegador: no dice de dónde sacar el dato y no deja seguir sin él.
+function avisoClave(msg) {
+  const c = $('avisoClave');
+  if (!c) return;
+  c.innerHTML = msg
+    ? '<div class="aviso malo" style="margin-top:12px">' + esc(msg) +
+      ' Se captura una sola vez en Configuración, en el recuadro azul de Empresa e Identidad.' +
+      '<div style="margin-top:10px"><a class="btn outline" href="admin_panel_v2.html">Ir a Configuración</a></div></div>'
+    : '';
+}
+
 async function enviarPlantilla(hoja, n) {
   const form = new FormData();
   form.append('payload', JSON.stringify({
@@ -393,39 +406,35 @@ async function guardarPlantilla(hoja) {
   btn.textContent = 'Guardando…';
 
   try {
-    // Una clave equivocada tiene que poder corregirse. Antes solo se pedía
-    // cuando no había ninguna guardada, así que si la guardada estaba mal el
-    // usuario se quedaba atorado sin manera de cambiarla.
-    for (let intento = 0; intento < 3; intento++) {
-      if (!CLAVE) {
-        const k = prompt('Clave de publicación, la misma que usas para publicar una encuesta:');
-        if (!k) return;
-        CLAVE = k.trim();
-      }
-
-      const json = await enviarPlantilla(hoja, n);
-
-      if (json && json.success) {
-        // Solo se guarda cuando ya se sabe que sirve. Guardarla antes es lo
-        // que dejaba una clave mala pegada en el navegador.
-        localStorage.setItem('climaiq_clave_pub', CLAVE);
-        const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
-        if (e) e.plantilla = n > 0 ? n : null;
-        pintar();
-        toast(n > 0 ? 'Plantilla guardada: ' + n + ' personas' : 'Plantilla borrada');
-        return;
-      }
-
-      const error = (json && json.error) || 'No se pudo guardar.';
-      if (/clave/i.test(error)) {
-        CLAVE = '';
-        localStorage.removeItem('climaiq_clave_pub');
-        toast('Esa clave no es la correcta. Vuelve a escribirla.');
-        continue;
-      }
-      throw new Error(error);
+    // La clave NO se pide con una ventanita del navegador. Es un ajuste del
+    // sistema y se captura una sola vez en Configuración; aquí solo se usa.
+    // Pedírsela de golpe a quien nunca la ha escrito es dejarlo atorado.
+    if (!CLAVE) {
+      avisoClave('Para guardar la plantilla falta capturar la clave de publicación.');
+      return;
     }
-    toast('No se pudo guardar: la clave sigue sin ser la correcta.');
+
+    const json = await enviarPlantilla(hoja, n);
+
+    if (json && json.success) {
+      const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
+      if (e) e.plantilla = n > 0 ? n : null;
+      avisoClave('');
+      pintar();
+      toast(n > 0 ? 'Plantilla guardada: ' + n + ' personas' : 'Plantilla borrada');
+      return;
+    }
+
+    const error = (json && json.error) || 'No se pudo guardar.';
+    if (/clave/i.test(error)) {
+      // Una clave que el servidor rechaza se olvida: si se quedara guardada,
+      // seguiría fallando en cada intento sin manera de corregirla.
+      CLAVE = '';
+      localStorage.removeItem('climaiq_clave_pub');
+      avisoClave('La clave guardada no es la correcta.');
+      return;
+    }
+    throw new Error(error);
   } catch (err) {
     toast('No se pudo guardar: ' + err.message);
   } finally {

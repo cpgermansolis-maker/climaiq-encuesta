@@ -901,6 +901,17 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
               <span style="font-size:.72rem;color:#555;margin-top:.4rem;display:block;">
                 Pégala aquí una sola vez — se incluirá automáticamente cada vez que publiques la encuesta.
               </span>
+
+              <label class="field-label" style="color:#2B5797;font-weight:700;margin-top:1rem;display:block;">🔑 Clave de publicación</label>
+              <input type="text" id="clavePub" oninput="guardarClavePub(this.value)"
+                placeholder="La clave que trae tu Apps Script"
+                style="font-family:monospace;font-size:.78rem;width:100%;margin-top:.4rem;">
+              <span style="font-size:.72rem;color:#555;margin-top:.4rem;display:block;">
+                Es lo que impide que alguien que descubra la dirección le cambie las preguntas a una
+                encuesta abierta. Captúrala una vez y el resto del sistema la usa sin volver a pedirla.
+                Se queda en este navegador y <strong>no se incluye al exportar la configuración</strong>,
+                para que no viaje en un archivo que se comparte.
+              </span>
             </div>
           </div>
         </div>
@@ -1494,12 +1505,24 @@ function collectFormValues() {
 
 function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
 
+// La clave de publicación vive SOLO en el navegador, aparte del estado del
+// panel. Si viviera en el estado, se iría dentro del archivo que genera
+// "Exportar configuración", que es un archivo pensado para compartirse.
+function guardarClavePub(valor) {
+  const clave = String(valor || '').trim();
+  if (clave) localStorage.setItem('climaiq_clave_pub', clave);
+  else       localStorage.removeItem('climaiq_clave_pub');
+  const campo = document.getElementById('publishKey');
+  if (campo) campo.value = clave;
+}
+
 function applyStateToUI() {
   // Identity fields
   setV('companyName', S.identity.companyName);
   setV('companyDept', S.identity.companyDept);
   setV('welcomeMsg', S.identity.welcomeMsg);
   setV('gasUrl', S.identity.gasUrl || localStorage.getItem('climaiq_gas_url') || '');
+  setV('clavePub', localStorage.getItem('climaiq_clave_pub') || '');
   setV('logoUrl', S.identity.logoUrl);
   setV('colorPrimary', S.identity.colorPrimary);
   setV('colorAccent', S.identity.colorAccent);
