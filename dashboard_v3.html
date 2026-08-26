@@ -41,6 +41,12 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--ink);
 .tb-logo svg { width:14px; height:14px; fill:var(--gold); }
 .tb-title { font-family:'DM Serif Display',serif; font-size:1rem; color:#fff; letter-spacing:.01em; }
 .tb-company { font-size:.68rem; color:rgba(255,255,255,.4); font-weight:400; margin-left:.4rem; }
+.tb-nav { display:flex; gap:.15rem; margin-left:1rem; }
+.tb-nav a { font-size:.78rem; font-weight:600; padding:.32rem .7rem; color:rgba(255,255,255,.7);
+            text-decoration:none; border-radius:3px; white-space:nowrap; }
+.tb-nav a:hover { background:rgba(255,255,255,.12); color:#fff; }
+.tb-nav a.active { background:rgba(255,255,255,.16); color:#fff; }
+@media (max-width:820px) { .tb-nav { display:none; } }
 .tb-right { display:flex; align-items:center; gap:.8rem; }
 .tb-status { display:flex; align-items:center; gap:.5rem; font-size:.7rem; color:rgba(255,255,255,.4); padding-right:.8rem; border-right:1px solid rgba(255,255,255,.08); }
 .sdot { width:7px; height:7px; border-radius:50%; background:#555; flex-shrink:0; }
@@ -323,6 +329,14 @@ input:focus { border-color:var(--navy); background:#fff; box-shadow:0 0 0 3px rg
       <span class="tb-title">Dashboard · Clima Laboral</span>
       <span class="tb-company" id="tbCompany"></span>
     </div>
+    <!-- Menú del sistema. Se pinta con la paleta del propio dashboard: cargar
+         aquí el sistema visual de OAC repintaría la pantalla entera, porque
+         sus variables se llaman igual que los alias de compatibilidad. -->
+    <nav class="tb-nav">
+      <a href="encuestas.html">Encuestas</a>
+      <a href="dashboard_v3.html" class="active">Resultados</a>
+      <a href="admin_panel_v2.html">Configuración</a>
+    </nav>
   </div>
   <div class="tb-right">
     <div class="tb-status">

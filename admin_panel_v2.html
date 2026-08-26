@@ -1,0 +1,3856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClimaIQ — Panel Administrador</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,900;1,300&family=Epilogue:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F2EDE4;
+  --surface: #FDFAF6;
+  --surface2: #EDE8DF;
+  --border: #D8D0C4;
+  --border-dark: #C0B8AA;
+  --ink: #1C1814;
+  --ink2: #5C5248;
+  --ink3: #9C948A;
+  --accent: #1C3A5E;
+  --accent-light: #E8EFF7;
+  --red: #C0392B;
+  --red-light: #FDECEA;
+  --green: #1A6B45;
+  --green-light: #E6F4ED;
+  --amber: #B45309;
+  --amber-light: #FEF3C7;
+  --shadow-sm: 0 1px 4px rgba(28,24,20,0.06);
+  --shadow: 0 2px 12px rgba(28,24,20,0.09);
+  --shadow-lg: 0 8px 32px rgba(28,24,20,0.12);
+  --radius: 2px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Epilogue', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  background: var(--accent);
+  color: #fff;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.topbar-tag {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 0.2rem 0.5rem;
+  color: rgba(255,255,255,0.85);
+}
+/* Menú del sistema. Se usa la paleta del propio panel y no el sistema visual
+   de OAC, porque cargarlo encima repintaría este panel entero: sus variables
+   se llaman igual que los alias de compatibilidad de OAC. La unificación
+   visual es un paso aparte, y OAC tampoco ha migrado sus módulos todavía. */
+.topbar-nav { display: flex; gap: 0.15rem; margin-left: 1.4rem; flex: 1; }
+.topbar-nav a {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.34rem 0.75rem;
+  color: rgba(255,255,255,0.78);
+  text-decoration: none;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.topbar-nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.topbar-nav a.active { background: rgba(255,255,255,0.18); color: #fff; }
+@media (max-width: 720px) {
+  .topbar-nav { margin-left: 0.6rem; }
+  .topbar-nav a { padding: 0.34rem 0.5rem; font-size: 0.72rem; }
+}
+.topbar-actions { display: flex; gap: 0.5rem; align-items: center; }
+.btn-bar {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.38rem 0.9rem;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: transparent;
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-bar:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.5); }
+.btn-bar.primary { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.4); }
+.btn-bar.primary:hover { background: rgba(255,255,255,0.28); }
+.saved-indicator {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.6);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.saved-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── LAYOUT ── */
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 52px);
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.nav-section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  padding: 1.2rem 1rem 0.4rem;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--ink2);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--ink); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-light); font-weight: 600; }
+.nav-icon { font-size: 0.95rem; min-width: 18px; text-align: center; }
+.sidebar-spacer { flex: 1; }
+.sidebar-version {
+  padding: 1rem;
+  font-size: 0.68rem;
+  color: var(--ink3);
+  border-top: 1px solid var(--border);
+}
+
+/* ── MAIN CONTENT ── */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem 2.5rem;
+}
+.page-head {
+  margin-bottom: 1.8rem;
+}
+.page-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+}
+.page-subtitle {
+  font-size: 0.83rem;
+  color: var(--ink2);
+  font-weight: 300;
+}
+.page-subtitle strong { color: var(--ink); font-weight: 600; }
+
+/* ── PANELS ── */
+.panel {
+  display: none;
+}
+.panel.active { display: block; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.2rem;
+  overflow: hidden;
+}
+.card-head {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.card-head-left { display: flex; align-items: center; gap: 0.6rem; }
+.card-icon { font-size: 1rem; }
+.card-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink2);
+}
+.card-body { padding: 1.3rem; }
+
+/* ── IDENTITY PANEL ── */
+.identity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+.field { display: flex; flex-direction: column; gap: 0.35rem; }
+.field.full { grid-column: 1/-1; }
+.field-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.field-label .req { color: var(--red); margin-left: 2px; }
+input[type=text], input[type=url], input[type=color], select, textarea {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.8rem;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(28,58,94,0.08);
+  background: var(--surface);
+}
+textarea { resize: vertical; min-height: 70px; }
+
+/* Logo upload area */
+.logo-upload-area {
+  border: 2px dashed var(--border-dark);
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg);
+  position: relative;
+}
+.logo-upload-area:hover { border-color: var(--accent); background: var(--accent-light); }
+.logo-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.logo-preview {
+  max-height: 64px;
+  max-width: 200px;
+  object-fit: contain;
+  display: none;
+  margin: 0 auto;
+}
+.logo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink3);
+}
+.logo-placeholder .icon { font-size: 1.8rem; }
+.logo-placeholder p { font-size: 0.78rem; }
+.logo-placeholder small { font-size: 0.68rem; color: var(--ink3); }
+.color-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+.color-field { display: flex; flex-direction: column; gap: 0.35rem; }
+input[type=color] {
+  height: 40px;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+}
+.preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  border-radius: 20px;
+}
+
+/* ── QUESTIONS PANEL ── */
+.q-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.2rem;
+}
+.q-tab {
+  padding: 0.65rem 1.2rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--ink2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.q-tab:hover { color: var(--ink); }
+.q-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.q-count {
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 20px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Question list */
+.q-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.q-row {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+.q-row:hover { border-color: var(--border-dark); box-shadow: var(--shadow-sm); }
+.q-row.dragging { opacity: 0.5; border-color: var(--accent); }
+.q-row.drag-over { border-top: 2px solid var(--accent); }
+
+.q-drag {
+  color: var(--ink3);
+  cursor: grab;
+  font-size: 1rem;
+  padding-top: 3px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.q-drag:active { cursor: grabbing; }
+
+.q-body { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+.q-textarea {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.875rem;
+  color: var(--ink);
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+  padding: 0.2rem 0.4rem;
+  min-height: 40px;
+  transition: all 0.15s;
+}
+.q-textarea:focus {
+  border-color: var(--border);
+  background: var(--bg);
+  box-shadow: 0 0 0 2px rgba(28,58,94,0.06);
+}
+.q-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+}
+.badge-global { background: var(--accent-light); color: var(--accent); }
+.badge-custom { background: var(--green-light); color: var(--green); }
+.badge-required { background: var(--red-light); color: var(--red); }
+.badge-optional { background: var(--surface2); color: var(--ink3); }
+
+.q-toggle-req {
+  font-size: 0.68rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--ink3);
+  user-select: none;
+  transition: color 0.15s;
+}
+.q-toggle-req:hover { color: var(--ink); }
+
+.q-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.q-btn {
+  width: 28px; height: 28px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink3);
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  border-radius: var(--radius);
+}
+.q-btn:hover { border-color: var(--border-dark); color: var(--ink); background: var(--surface2); }
+.q-btn.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+.add-q-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--surface2);
+  border: 1.5px dashed var(--border-dark);
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: all 0.18s;
+  margin-top: 0.4rem;
+}
+.add-q-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+/* Area selector for custom questions */
+.area-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+.area-chip {
+  padding: 0.5rem 0.8rem;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  color: var(--ink2);
+  position: relative;
+}
+.area-chip:hover { border-color: var(--accent); color: var(--accent); }
+.area-chip.active { border-color: var(--accent); background: var(--accent); color: white; font-weight: 600; }
+.area-chip .q-chip-count {
+  position: absolute;
+  top: -6px; right: -6px;
+  background: var(--green);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 2.5rem;
+  color: var(--ink3);
+}
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+.empty-state p { font-size: 0.85rem; margin-bottom: 1rem; }
+
+/* ── AREAS PANEL ── */
+.areas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+.area-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: all 0.18s;
+}
+.area-card:hover { border-color: var(--border-dark); box-shadow: var(--shadow); }
+.area-card-top {
+  padding: 0.9rem 1rem 0.7rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.area-name-input {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--ink);
+  width: 100%;
+  padding: 0;
+}
+.area-name-input:focus { border-bottom: 1px solid var(--accent); }
+.area-delete {
+  background: none;
+  border: none;
+  color: var(--ink3);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.3rem;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.area-delete:hover { color: var(--red); }
+.area-card-stats {
+  border-top: 1px solid var(--border);
+  padding: 0.6rem 1rem;
+  display: flex;
+  gap: 1rem;
+}
+.area-stat {
+  font-size: 0.72rem;
+  color: var(--ink3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.area-stat strong { color: var(--ink); font-size: 1rem; font-family: 'Fraunces', serif; font-weight: 600; }
+
+.add-area-card {
+  border: 2px dashed var(--border-dark);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.8rem;
+  cursor: pointer;
+  transition: all 0.18s;
+  color: var(--ink3);
+  font-size: 0.82rem;
+  min-height: 110px;
+}
+.add-area-card:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.add-area-card .plus { font-size: 1.6rem; font-weight: 300; }
+
+/* ── SETTINGS PANEL ── */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+.toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  gap: 1rem;
+}
+.toggle-info h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.2rem; }
+.toggle-info p { font-size: 0.75rem; color: var(--ink3); font-weight: 300; }
+.toggle {
+  position: relative;
+  width: 40px; height: 22px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border-dark);
+  cursor: pointer;
+  border-radius: 22px;
+  transition: background 0.25s;
+}
+.toggle-track::before {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  background: white;
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.toggle input:checked + .toggle-track { background: var(--green); }
+.toggle input:checked + .toggle-track::before { transform: translateX(18px); }
+
+/* ── PREVIEW PANEL ── */
+.preview-frame-wrap {
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  padding: 1rem;
+}
+.preview-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.device-btn {
+  padding: 0.4rem 0.8rem;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 0.3rem;
+}
+.device-btn:hover, .device-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.preview-iframe {
+  width: 100%;
+  height: 650px;
+  border: none;
+  background: white;
+  display: block;
+  transition: max-width 0.3s;
+  margin: 0 auto;
+}
+
+/* ── SCRIPT PANEL ── */
+.script-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.code-block {
+  background: #1C1814;
+  color: #D8D0C4;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
+  line-height: 1.75;
+  padding: 1.5rem;
+  overflow: auto;
+  max-height: 480px;
+  border: 1px solid #3C3830;
+  white-space: pre;
+}
+.c-comment { color: #7A8A6A; }
+.c-kw { color: #C9956A; }
+.c-str { color: #88A060; }
+.c-fn { color: #80A0C8; }
+.c-num { color: #C09870; }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.02em;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: #162E4A; }
+.btn-success { background: var(--green); color: white; }
+.btn-success:hover { background: #145536; }
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { background: #992520; }
+.btn-ghost {
+  background: transparent;
+  color: var(--ink2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--border-dark); color: var(--ink); background: var(--surface2); }
+
+/* ── TOAST ── */
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.toast {
+  background: var(--accent);
+  color: white;
+  padding: 0.75rem 1.2rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 320px;
+  animation: toastIn 0.3s ease;
+}
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+.toast.warning { background: var(--amber); }
+@keyframes toastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+/* ── MISC ── */
+.info-banner {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--accent-light);
+  background: var(--accent-light);
+  border-left: 3px solid var(--accent);
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-bottom: 1.2rem;
+}
+.warn-banner {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--amber-light);
+  background: var(--amber-light);
+  border-left: 3px solid var(--amber);
+  font-size: 0.8rem;
+  color: var(--amber);
+  margin-bottom: 1.2rem;
+}
+.divider { height: 1px; background: var(--border); margin: 1.2rem 0; }
+hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+
+/* ── STEPS ── */
+.steps { display: flex; flex-direction: column; gap: 0.8rem; }
+.step {
+  display: flex;
+  gap: 1rem;
+  padding: 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.step-num {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.step-body h4 { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.3rem; }
+.step-body p { font-size: 0.8rem; color: var(--ink2); line-height: 1.5; }
+.step-body code {
+  font-family: monospace;
+  font-size: 0.78rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.4rem;
+  color: var(--red);
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-tag">ADMIN</span>
+    ClimaIQ
+  </div>
+  <nav class="topbar-nav">
+    <a href="encuestas.html">Encuestas</a>
+    <a href="dashboard_v3.html">Resultados</a>
+    <a href="admin_panel_v2.html" class="active">Configuración</a>
+  </nav>
+  <div class="topbar-actions">
+    <div class="saved-indicator">
+      <div class="saved-dot"></div>
+      <span id="saveStatus">Guardado automáticamente</span>
+    </div>
+    <button class="btn-bar" onclick="exportConfig()">⬇ Exportar</button>
+    <button class="btn-bar" onclick="triggerImport()">⬆ Importar</button>
+    <button class="btn-bar" onclick="showHistorialModal()" id="btnHistorial" style="background:transparent;border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.7);">📂 Historial</button>
+    <button class="btn-bar" onclick="showNuevaEncuestaModal()" style="background:rgba(26,92,58,.3);border-color:rgba(26,92,58,.6);color:#7DD4A8;">✦ Nueva Encuesta</button>
+    <button class="btn-bar primary" onclick="publishSurvey()">🚀 Publicar Encuesta</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)">
+  </div>
+</div>
+
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section-label">Configuración</div>
+    <div class="nav-item active" onclick="goTo('identity')" id="nav-identity">
+      <span class="nav-icon">🏢</span> Empresa e Identidad
+    </div>
+    <div class="nav-item" onclick="goTo('areas')" id="nav-areas">
+      <span class="nav-icon">📂</span> Áreas
+    </div>
+    <div class="nav-item" onclick="goTo('questions')" id="nav-questions">
+      <span class="nav-icon">📋</span> Preguntas
+    </div>
+    <div class="nav-item" onclick="goTo('settings')" id="nav-settings">
+      <span class="nav-icon">⚙️</span> Opciones
+    </div>
+
+    <div class="nav-section-label">Vista Previa</div>
+    <div class="nav-item" onclick="goTo('preview')" id="nav-preview">
+      <span class="nav-icon">👁</span> Vista Previa
+    </div>
+
+    <div class="nav-section-label">Integración</div>
+    <div class="nav-item" onclick="goTo('script')" id="nav-script">
+      <span class="nav-icon">⚙️</span> Apps Script
+    </div>
+    <div class="nav-item" onclick="goTo('guide')" id="nav-guide">
+      <span class="nav-icon">📖</span> Guía Instalación
+    </div>
+    <div class="nav-item" onclick="goTo('manual')" id="nav-manual">
+      <span class="nav-icon">📘</span> Manual de Operación
+    </div>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-version">ClimaIQ v2.0 · <span id="lastSave">—</span></div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ══ IDENTITY ══ -->
+    <div class="panel active" id="panel-identity">
+      <div class="page-head">
+        <div class="page-title">Empresa e Identidad</div>
+        <div class="page-subtitle">Define el nombre, logo y colores que aparecerán en la encuesta que ven los trabajadores.</div>
+      </div>
+
+      <div class="info-banner">
+        ℹ️ <span>Todos los cambios se guardan automáticamente. La encuesta usará siempre la configuración más reciente que hayas guardado aquí.</span>
+      </div>
+
+      <!-- Logo & nombre -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <span class="card-icon">🏢</span>
+            <span class="card-title">Datos de la Empresa</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="identity-grid">
+            <div class="field">
+              <label class="field-label">Nombre de la empresa <span class="req">*</span></label>
+              <input type="text" id="companyName" placeholder="Ej: Grupo Industrial Macin" oninput="autoSave()">
+            </div>
+            <div class="field">
+              <label class="field-label">Departamento / División</label>
+              <input type="text" id="companyDept" placeholder="Ej: Recursos Humanos" oninput="autoSave()">
+            </div>
+            <div class="field full">
+              <label class="field-label">Mensaje de bienvenida en la encuesta</label>
+              <textarea id="welcomeMsg" rows="2" placeholder="Ej: Tu opinión es muy importante para nosotros. Responde con sinceridad." oninput="autoSave()"></textarea>
+            </div>
+            <div class="field full" style="margin-top:1rem;padding:1rem;background:#EEF4FF;border:2px solid #2B5797;border-radius:6px;">
+              <label class="field-label" style="color:#2B5797;font-weight:700;">🔗 URL del Apps Script</label>
+              <input type="text" id="gasUrl" oninput="autoSave()"
+                placeholder="https://script.google.com/macros/s/.../exec"
+                style="font-family:monospace;font-size:.78rem;width:100%;margin-top:.4rem;">
+              <span style="font-size:.72rem;color:#555;margin-top:.4rem;display:block;">
+                Pégala aquí una sola vez — se incluirá automáticamente cada vez que publiques la encuesta.
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logo upload -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <span class="card-icon">🖼</span>
+            <span class="card-title">Logo de la Empresa</span>
+          </div>
+          <button class="btn btn-ghost" onclick="clearLogo()" style="font-size:0.75rem;padding:0.3rem 0.7rem;">Quitar logo</button>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start;">
+            <div>
+              <div class="logo-upload-area" onclick="document.getElementById('logoFile').click()">
+                <input type="file" id="logoFile" accept="image/*" onchange="handleLogoUpload(event)" style="display:none">
+                <img class="logo-preview" id="logoPreview" alt="Logo">
+                <div class="logo-placeholder" id="logoPlaceholder">
+                  <div class="icon">📁</div>
+                  <p>Haz clic para subir el logo</p>
+                  <small>PNG, JPG, SVG · Máx. 2MB</small>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.8rem;">
+              <div class="field">
+                <label class="field-label">O pega URL del logo</label>
+                <input type="url" id="logoUrl" placeholder="https://..." oninput="handleLogoUrl()">
+              </div>
+              <div style="font-size:0.75rem;color:var(--ink3);line-height:1.5;">
+                El logo aparecerá en el encabezado de la encuesta. Recomendamos imagen con fondo transparente o blanco.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colors -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <span class="card-icon">🎨</span>
+            <span class="card-title">Colores de la Encuesta</span>
+          </div>
+          <button class="btn btn-ghost" onclick="resetColors()" style="font-size:0.75rem;padding:0.3rem 0.7rem;">Restaurar predeterminados</button>
+        </div>
+        <div class="card-body">
+          <div class="color-row">
+            <div class="color-field">
+              <label class="field-label">Color principal</label>
+              <input type="color" id="colorPrimary" value="#1C3A5E" oninput="autoSave()">
+              <div style="font-size:0.7rem;color:var(--ink3);">Encabezado y botones</div>
+            </div>
+            <div class="color-field">
+              <label class="field-label">Color de acento</label>
+              <input type="color" id="colorAccent" value="#27AE60" oninput="autoSave()">
+              <div style="font-size:0.7rem;color:var(--ink3);">Barra de progreso</div>
+            </div>
+            <div class="color-field">
+              <label class="field-label">Color de fondo</label>
+              <input type="color" id="colorBg" value="#F7F4EF" oninput="autoSave()">
+              <div style="font-size:0.7rem;color:var(--ink3);">Fondo general</div>
+            </div>
+          </div>
+          <div style="margin-top:1rem;padding:0.8rem 1rem;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;gap:0.8rem;font-size:0.78rem;color:var(--ink2);">
+            Vista previa:
+            <span id="colorPreviewBadge" class="preview-badge" style="background:#1C3A5E;color:white;">Botón principal</span>
+            <span id="colorAccentBadge" class="preview-badge" style="background:#27AE60;color:white;">Acento</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ AREAS ══ -->
+    <div class="panel" id="panel-areas">
+      <div class="page-head">
+        <div class="page-title">Áreas de la Empresa</div>
+        <div class="page-subtitle">Gestiona las áreas. Los empleados elegirán su área al llenar la encuesta y recibirán preguntas específicas adicionales.</div>
+      </div>
+
+      <div class="areas-grid" id="areasGrid"></div>
+    </div>
+
+    <!-- ══ QUESTIONS ══ -->
+    <div class="panel" id="panel-questions">
+      <div class="page-head">
+        <div class="page-title">Editor de Preguntas</div>
+        <div class="page-subtitle">Edita las preguntas en vivo. Las <strong>Globales</strong> las ven todos. Las <strong>Por Área</strong> solo los empleados de esa área.</div>
+      </div>
+
+      <div class="q-tabs">
+        <div class="q-tab active" onclick="switchQTab('global')" id="qtab-global">
+          Globales <span class="q-count" id="qcount-global">0</span>
+        </div>
+        <div class="q-tab" onclick="switchQTab('area')" id="qtab-area">
+          Por Área <span class="q-count" id="qcount-area">0</span>
+        </div>
+      </div>
+
+      <!-- Global questions tab -->
+      <div id="qtab-panel-global">
+        <div class="info-banner" style="margin-bottom:1rem;">
+          📋 <span>Estas preguntas aparecen para <strong>todos los empleados</strong>, sin importar su área. Puedes reordenarlas arrastrándolas.</span>
+        </div>
+        <div class="q-list" id="globalQList"></div>
+        <button class="add-q-btn" onclick="addGlobalQ()">
+          + Agregar pregunta global
+        </button>
+      </div>
+
+      <!-- Area questions tab -->
+      <div id="qtab-panel-area" style="display:none;">
+        <div class="info-banner" style="margin-bottom:1rem;">
+          📂 <span>Selecciona un área para ver y editar sus preguntas exclusivas. Se muestran <strong>adicionales</strong> a las globales.</span>
+        </div>
+        <div class="area-selector" id="areaChips"></div>
+        <div id="areaQContent">
+          <div class="empty-state">
+            <div class="icon">👆</div>
+            <p>Selecciona un área arriba para editar sus preguntas</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="panel" id="panel-settings">
+      <div class="page-head">
+        <div class="page-title">Opciones de la Encuesta</div>
+        <div class="page-subtitle">Controla qué elementos aparecen en la encuesta al enviarla a los trabajadores.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left"><span class="card-icon">⚙️</span><span class="card-title">Comportamiento</span></div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:0.7rem;">
+
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <h4>🔒 Permitir respuesta anónima</h4>
+              <p>El empleado puede elegir no incluir su nombre en la respuesta</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tog-anon" checked onchange="autoSave()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <h4>💬 Mostrar campo de propuestas</h4>
+              <p>Pregunta abierta: ¿qué propones para mejorar el clima laboral?</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tog-propuestas" checked onchange="autoSave()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <h4>📝 Mostrar campo de observaciones</h4>
+              <p>Campo libre adicional para cualquier comentario extra</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tog-obs" checked onchange="autoSave()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <h4>📊 Mostrar barra de progreso</h4>
+              <p>El empleado ve cuánto del formulario ha completado</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tog-progress" checked onchange="autoSave()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <h4>🔢 Mostrar escala de referencia</h4>
+              <p>Muestra la leyenda 1=Nunca, 2=Pocas veces, etc.</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tog-scale" checked onchange="autoSave()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left"><span class="card-icon">🔢</span><span class="card-title">Escala de Evaluación</span></div>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;">
+            <div class="field"><label class="field-label">Valor 1</label><input type="text" id="scale1" value="Nunca" oninput="autoSave()"></div>
+            <div class="field"><label class="field-label">Valor 2</label><input type="text" id="scale2" value="Pocas veces" oninput="autoSave()"></div>
+            <div class="field"><label class="field-label">Valor 3</label><input type="text" id="scale3" value="Frecuentemente" oninput="autoSave()"></div>
+            <div class="field"><label class="field-label">Valor 4</label><input type="text" id="scale4" value="Siempre" oninput="autoSave()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PREVIEW ══ -->
+    <div class="panel" id="panel-preview">
+      <div class="page-head">
+        <div class="page-title">Vista Previa</div>
+        <div class="page-subtitle">Así verán los trabajadores la encuesta. Refleja tu configuración actual en tiempo real.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left"><span class="card-icon">👁</span><span class="card-title">Vista Previa de la Encuesta</span></div>
+          <div class="preview-controls" style="margin-bottom:0;">
+            <button class="device-btn active" onclick="setDevice('desktop', this)">🖥 Escritorio</button>
+            <button class="device-btn" onclick="setDevice('tablet', this)">📱 Tablet</button>
+            <button class="device-btn" onclick="setDevice('mobile', this)">📲 Móvil</button>
+            <button class="btn btn-ghost" onclick="refreshPreview()" style="margin-left:auto;font-size:0.75rem;padding:0.35rem 0.7rem;">↺ Actualizar</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:1rem;background:var(--surface2);">
+          <div id="previewWrap" style="overflow:hidden;margin:0 auto;transition:max-width 0.3s;max-width:100%;">
+            <iframe id="previewFrame" class="preview-iframe" title="Vista previa de encuesta"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SCRIPT ══ -->
+    <div class="panel" id="panel-script">
+      <div class="page-head">
+        <div class="page-title">Google Apps Script</div>
+        <div class="page-subtitle">Código generado automáticamente. Pégalo en tu Google Sheets para activar la conexión automática.</div>
+      </div>
+
+      <div class="warn-banner">
+        ⚠️ Cada vez que modifiques preguntas o áreas, regresa a esta sección y vuelve a copiar el script actualizado.
+      </div>
+
+      <div class="script-toolbar">
+        <button class="btn btn-primary" onclick="copyScript()">📋 Copiar script</button>
+        <button class="btn btn-ghost" onclick="downloadScript()">⬇ Descargar .gs</button>
+      </div>
+
+      <div class="code-block" id="scriptCode"></div>
+    </div>
+
+    <!-- ══ GUIDE ══ -->
+    <div class="panel" id="panel-guide">
+      <div class="page-head">
+        <div class="page-title">Guía de Instalación</div>
+        <div class="page-subtitle">Esto se hace <strong>una sola vez</strong>. El script sirve para todas las empresas: cada una queda en su propia pestaña del mismo Google Sheets.</div>
+      </div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><h4>Abre tu Google Sheets</h4><p>Ve a la hoja de cálculo donde se guardan las respuestas. Necesitas acceso de editor (eres dueño).</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><h4>Abre el Editor de Apps Script</h4><p>En el menú superior: <code>Extensiones</code> → <code>Apps Script</code>. Se abrirá el editor.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><h4>Pega el código</h4><p>Borra todo el código existente. Ve a la pestaña "Apps Script" de este panel, copia el código y pégalo. Guarda con <code>Ctrl+S</code>. Es un script genérico: <strong>no se vuelve a tocar</strong> aunque cambies preguntas o agregues otra empresa.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><h4>Despliega como aplicación web</h4><p>Clic en <code>Implementar</code> → <code>Nueva implementación</code> → Tipo: <code>Aplicación web</code> → Ejecutar como: <code>Yo</code> → Acceso: <code>Cualquier usuario</code> → <code>Implementar</code>.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><h4>Autoriza los permisos</h4><p>Google pedirá que autorices el script para editar tu hoja. Acepta todos los permisos.</p></div></div>
+        <div class="step"><div class="step-num">6</div><div class="step-body"><h4>Copia la URL generada</h4><p>Google te dará una URL tipo <code>https://script.google.com/macros/s/AKfy.../exec</code>. Cópiala y pégala en <strong>Ajustes → URL del Apps Script</strong> de este panel.</p></div></div>
+        <div class="step"><div class="step-num">7</div><div class="step-body"><h4>Verifica que la URL esté viva</h4><p>Ábrela en el navegador agregándole <code>?test=1</code> al final. Debe responder <code>{"status":"ok"...}</code>. Si sale "No se encontró la página", esa implementación no existe: regresa al paso 4 y crea una nueva.</p></div></div>
+        <div class="step"><div class="step-num">8</div><div class="step-body"><h4>Publica y prueba</h4><p>Entra a <strong>Preview → Publicar encuesta</strong>, captura la clave de publicación y presiona <strong>Publicar y obtener link</strong>. La encuesta queda viva en ese instante y el panel te da el link para el personal. Ábrelo, contesta una respuesta de prueba y verifica que aparezca en la pestaña con el nombre de la empresa. <strong>No hay que subir nada a GitHub.</strong></p></div></div>
+      </div>
+      <div style="background:#F0EDE8;border-left:3px solid #1A2F4A;padding:1rem 1.2rem;margin-top:1.4rem;font-size:.82rem;color:#4A4642;line-height:1.7;max-width:860px;">
+        <strong style="color:#1A2F4A;">¿Y para la siguiente empresa?</strong><br>
+        Nada de lo anterior se repite. Cambias el nombre de la empresa y las preguntas en este panel, y presionas <strong>Publicar encuesta</strong>. Nada de repositorio ni de archivos: la encuesta nueva queda viva al instante con su propio link, y la anterior <em>sigue funcionando con el suyo</em>. La misma URL del Apps Script sirve para todas: cada encuesta le avisa a qué pestaña van sus respuestas.
+      </div>
+    </div>
+
+
+    <!-- ══ MANUAL DE OPERACIÓN ══ -->
+    <div class="panel" id="panel-manual">
+      <div class="page-head">
+        <div class="page-title">📘 Manual de Operación — ClimaIQ</div>
+        <div class="page-subtitle">Todo lo que necesitas saber para operar el sistema correctamente</div>
+      </div>
+      <div style="max-width:860px;">
+
+        <!-- ÍNDICE -->
+        <div style="background:#f7f4ef;border:1px solid #e4ddd4;padding:1.2rem 1.5rem;margin-bottom:1.5rem;border-radius:4px;">
+          <div style="font-size:.65rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:.8rem;">Contenido</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .5rem;">
+            <a href="#m1" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">1. Archivos del sistema</a>
+            <a href="#m2" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">2. Flujo completo de una encuesta</a>
+            <a href="#m3" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">3. Nueva empresa / nuevo período</a>
+            <a href="#m4" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">4. Convenciones de nombres en Sheets</a>
+            <a href="#m5" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">5. Publicar en GitHub</a>
+            <a href="#m6" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">6. El Dashboard</a>
+            <a href="#m7" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">7. Solución de problemas frecuentes</a>
+            <a href="#m8" style="font-size:.82rem;color:#1C3A5E;text-decoration:none;">8. Glosario</a>
+          </div>
+        </div>
+
+        <!-- 1. ARCHIVOS -->
+        <div id="m1" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">📁</span><span class="card-title">1. Archivos del sistema</span></div>
+          <div class="card-body">
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+              <tr style="background:#f7f4ef;">
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;color:#1C3A5E;">Archivo</th>
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;color:#1C3A5E;">Qué es</th>
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;color:#1C3A5E;">Quién lo usa</th>
+              </tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">admin_panel_v2.html</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Panel de administración. Aquí configuras empresa, áreas, preguntas y publicas la encuesta.</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;color:#1A5C3A;">Solo tú (operador)</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">index.html</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">La encuesta que ven los trabajadores. Se genera desde el Panel Admin y se sube a GitHub.</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;color:#C09648;">Trabajadores</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">dashboard_v3.html</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Dashboard de análisis. Muestra resultados, gráficas, comparativas e informes.</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;color:#8B2A1F;">Tú y tu jefe</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;font-weight:600;">apps_script_climaiq.gs</td><td style="padding:.5rem .8rem;">Script en Google Sheets que recibe respuestas y entrega datos al dashboard. Se implementa una sola vez.</td><td style="padding:.5rem .8rem;color:#888;">Solo Google Sheets</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 2. FLUJO -->
+        <div id="m2" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">🔄</span><span class="card-title">2. Flujo completo de una encuesta</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:.6rem;">
+              <div style="display:flex;gap:.8rem;align-items:flex-start;">
+                <div style="min-width:28px;height:28px;background:#0B1F3A;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-top:.1rem;">1</div>
+                <div><strong>Configura en el Panel Admin</strong><br><span style="font-size:.8rem;color:#666;">Empresa e Identidad → pon nombre, logo y URL del Apps Script. Áreas → define los departamentos. Preguntas → agrega o modifica el cuestionario.</span></div>
+              </div>
+              <div style="display:flex;gap:.8rem;align-items:flex-start;">
+                <div style="min-width:28px;height:28px;background:#0B1F3A;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-top:.1rem;">2</div>
+                <div><strong>Publica la encuesta</strong><br><span style="font-size:.8rem;color:#666;">Botón 🚀 Publicar Encuesta → descarga el archivo → renómbralo <code>index.html</code> → súbelo a GitHub (reemplaza el anterior).</span></div>
+              </div>
+              <div style="display:flex;gap:.8rem;align-items:flex-start;">
+                <div style="min-width:28px;height:28px;background:#0B1F3A;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-top:.1rem;">3</div>
+                <div><strong>Envía el link a los trabajadores</strong><br><span style="font-size:.8rem;color:#666;">URL de la encuesta: <code>https://cpgermansolis-maker.github.io/climaiq-encuesta</code></span></div>
+              </div>
+              <div style="display:flex;gap:.8rem;align-items:flex-start;">
+                <div style="min-width:28px;height:28px;background:#1A5C3A;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-top:.1rem;">4</div>
+                <div><strong>Monitorea en el Dashboard</strong><br><span style="font-size:.8rem;color:#666;">Abre <code>dashboard_v3.html</code> → Elegir Encuesta → selecciona la hoja → los datos se cargan en tiempo real.</span></div>
+              </div>
+              <div style="display:flex;gap:.8rem;align-items:flex-start;">
+                <div style="min-width:28px;height:28px;background:#C09648;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-top:.1rem;">5</div>
+                <div><strong>Genera el informe</strong><br><span style="font-size:.8rem;color:#666;">Desde el Dashboard → botón 📄 Informe PDF o 📝 Exportar Word → entrega a dirección.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. NUEVA EMPRESA / PERÍODO -->
+        <div id="m3" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">➕</span><span class="card-title">3. Nueva empresa o nuevo período</span></div>
+          <div class="card-body">
+            <div style="margin-bottom:1rem;padding:.8rem;background:#e8f5ee;border-left:3px solid #1A5C3A;font-size:.82rem;">
+              <strong>El Apps Script es universal</strong> — no necesitas cambiarlo ni reimplementarlo nunca. Cada encuesta crea su propia hoja automáticamente.
+            </div>
+            <p style="font-size:.82rem;color:#444;margin-bottom:.8rem;"><strong>Para una empresa nueva:</strong> cambia el nombre en Empresa e Identidad → publica → las respuestas van a una hoja nueva con ese nombre.</p>
+            <p style="font-size:.82rem;color:#444;margin-bottom:.8rem;"><strong>Para una segunda encuesta de la misma empresa:</strong> el sistema crea automáticamente <code>Grupo TODA 2</code>, <code>Grupo TODA 3</code>, etc.</p>
+            <p style="font-size:.82rem;color:#444;"><strong>Para cambiar preguntas:</strong> modifica en el Panel Admin → vuelve a publicar → sube el nuevo <code>index.html</code> a GitHub. No hay que tocar el Apps Script.</p>
+          </div>
+        </div>
+
+        <!-- 4. CONVENCIONES SHEETS -->
+        <div id="m4" class="card" style="margin-bottom:1.2rem;border-left:3px solid #C09648;">
+          <div class="card-head"><span class="card-icon">⚠️</span><span class="card-title">4. Convenciones de nombres en Google Sheets</span></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:#444;margin-bottom:1rem;">Estas convenciones son importantes para que el sistema funcione correctamente:</p>
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+              <tr style="background:#fff8ec;">
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #f0e4c4;color:#8A5210;">Convención</th>
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #f0e4c4;color:#8A5210;">Ejemplo</th>
+                <th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #f0e4c4;color:#8A5210;">Efecto</th>
+              </tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Nombre normal</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;"><code>Grupo TODA</code></td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Aparece en el selector del dashboard ✓</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Segunda encuesta</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;"><code>Grupo TODA 2</code></td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Se crea automáticamente ✓</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Hoja archivada</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;"><code>Grupo TODA · ARCHIVADA</code></td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;color:#C0392B;">Se oculta del dashboard automáticamente ✓</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;font-weight:600;">⚠️ NO borres hojas</td><td style="padding:.5rem .8rem;"><code>— no borrar —</code></td><td style="padding:.5rem .8rem;color:#C0392B;">Los datos se pierden para siempre. Mejor renombrar con ARCHIVADA.</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. GITHUB -->
+        <div id="m5" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">🐙</span><span class="card-title">5. Publicar en GitHub</span></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:#444;margin-bottom:.8rem;"><strong>Repositorio:</strong> <code>climaiq-encuesta</code> en tu cuenta de GitHub.</p>
+            <p style="font-size:.82rem;color:#444;margin-bottom:.8rem;"><strong>Para actualizar la encuesta:</strong> Add file → Upload files → sube <code>index.html</code> → Commit changes.</p>
+            <p style="font-size:.82rem;color:#444;margin-bottom:.8rem;"><strong>Para actualizar el dashboard:</strong> mismo proceso con <code>dashboard_v3.html</code>.</p>
+            <div style="background:#f0f7ff;border:1px solid #c0d8f0;padding:.8rem;border-radius:4px;font-size:.82rem;">
+              <strong>URLs permanentes:</strong><br>
+              🔗 Encuesta: <code>https://cpgermansolis-maker.github.io/climaiq-encuesta</code><br>
+              📊 Dashboard: <code>https://cpgermansolis-maker.github.io/climaiq-encuesta/dashboard_v3.html</code>
+            </div>
+            <div style="background:#fff8ec;border:2px solid #C09648;padding:.8rem;border-radius:4px;font-size:.82rem;margin-top:.8rem;">
+              <strong>⚠️ URL del Apps Script — por si se olvida:</strong><br>
+              <code style="font-size:.72rem;word-break:break-all;user-select:all;">https://script.google.com/macros/s/AKfycbxNnPykTYJc2v3UlGyBkecxgC5geHaQYwE5KfMfQxA7L1gNFihDjM2_D9NNpKuWwiIJ/exec</code><br>
+              <span style="font-size:.75rem;color:#666;margin-top:.4rem;display:block;">Si el campo 🔗 en Empresa e Identidad está vacío, copia esta URL y pégala ahí.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. DASHBOARD -->
+        <div id="m6" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">📊</span><span class="card-title">6. El Dashboard</span></div>
+          <div class="card-body">
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+              <tr style="background:#f7f4ef;"><th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;">Sección</th><th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;">Qué muestra</th></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">📊 Resumen General</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">KPIs globales, score, % positivas/negativas, áreas críticas</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">📐 Por Dimensión</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Resultado por cada pregunta del cuestionario</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">🏢 Por Área</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Comparativa entre departamentos</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">⚠️ Alertas</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Preguntas y áreas con score crítico (< 2.3)</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">📂 Elegir Encuesta</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Selector de hoja — cambia qué encuesta estás analizando</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;">📊 Comparar</td><td style="padding:.5rem .8rem;">Comparativa lado a lado entre dos encuestas con evolución de métricas</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 7. PROBLEMAS FRECUENTES -->
+        <div id="m7" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">🔧</span><span class="card-title">7. Solución de problemas frecuentes</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:.8rem;">
+              <div style="padding:.8rem;background:#fff8f8;border-left:3px solid #C0392B;border-radius:0 4px 4px 0;">
+                <strong style="font-size:.82rem;">Las respuestas van a la hoja equivocada</strong>
+                <p style="font-size:.78rem;color:#666;margin:.3rem 0 0;">Verifica que el nombre en <em>Empresa e Identidad</em> coincida exactamente con la hoja en Sheets. Vuelve a publicar la encuesta después de cualquier cambio de nombre.</p>
+              </div>
+              <div style="padding:.8rem;background:#fff8f8;border-left:3px solid #C0392B;border-radius:0 4px 4px 0;">
+                <strong style="font-size:.82rem;">La encuesta sigue mostrando preguntas viejas</strong>
+                <p style="font-size:.78rem;color:#666;margin:.3rem 0 0;">Debes volver a publicar desde el Panel Admin y subir el nuevo <code>index.html</code> a GitHub. Los cambios en el panel no se reflejan automáticamente.</p>
+              </div>
+              <div style="padding:.8rem;background:#fff8f8;border-left:3px solid #C0392B;border-radius:0 4px 4px 0;">
+                <strong style="font-size:.82rem;">El dashboard no carga los datos</strong>
+                <p style="font-size:.78rem;color:#666;margin:.3rem 0 0;">Verifica que la URL del Apps Script sea la correcta (termina en <code>/exec</code>). Si cambiaste el script, asegúrate de haber creado una nueva implementación.</p>
+              </div>
+              <div style="padding:.8rem;background:#fff8f8;border-left:3px solid #C0392B;border-radius:0 4px 4px 0;">
+                <strong style="font-size:.82rem;">El dashboard muestra datos de una encuesta anterior</strong>
+                <p style="font-size:.78rem;color:#666;margin:.3rem 0 0;">Ve a <em>📂 Elegir Encuesta</em> y selecciona la hoja correcta. El dashboard no cambia de hoja automáticamente.</p>
+              </div>
+              <div style="padding:.8rem;background:#fff8f8;border-left:3px solid #C0392B;border-radius:0 4px 4px 0;">
+                <strong style="font-size:.82rem;">El Panel Admin no guarda los cambios</strong>
+                <p style="font-size:.78rem;color:#666;margin:.3rem 0 0;">El panel guarda automáticamente en el navegador (localStorage). Si abres el panel en otro navegador o computadora, los datos no estarán ahí — usa <em>Exportar</em> para hacer respaldo.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. GLOSARIO -->
+        <div id="m8" class="card" style="margin-bottom:1.2rem;">
+          <div class="card-head"><span class="card-icon">📖</span><span class="card-title">8. Glosario</span></div>
+          <div class="card-body">
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+              <tr style="background:#f7f4ef;"><th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;">Término</th><th style="padding:.5rem .8rem;text-align:left;border-bottom:2px solid #e4ddd4;">Significado</th></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Apps Script</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Código que vive en Google Sheets. Recibe respuestas y las guarda. Se implementa una sola vez.</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">GitHub Pages</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Servicio gratuito que publica archivos HTML como páginas web con una URL pública.</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">ARCHIVADA</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Palabra clave que se agrega al nombre de una hoja en Sheets para ocultarla del dashboard sin borrar los datos.</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Score</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Promedio de respuestas en escala 1-4. ≥3.0 = satisfactorio, 2.3-2.9 = atención, <2.3 = crítico.</td></tr>
+              <tr><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">index.html</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Nombre obligatorio del archivo de encuesta en GitHub para que sea la página principal del repositorio.</td></tr>
+              <tr style="background:#faf7f2;"><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;font-weight:600;">Implementación</td><td style="padding:.5rem .8rem;border-bottom:1px solid #f0ece8;">Proceso de publicar el Apps Script como servicio web. Genera la URL /exec. Solo se hace una vez.</td></tr>
+              <tr><td style="padding:.5rem .8rem;font-weight:600;">localStorage</td><td style="padding:.5rem .8rem;">Almacenamiento interno del navegador donde el Panel Admin guarda tu configuración. No se comparte entre navegadores.</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div style="text-align:center;padding:1.5rem;font-size:.75rem;color:#aaa;">
+          ClimaIQ · Manual de Operación · Versión 1.0 · 2026
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE — todo persiste en localStorage automáticamente
+// ═══════════════════════════════════════════════════════════════
+const STORE_KEY = 'climaiq_admin_v2';
+
+const DEFAULT_STATE = {
+  identity: {
+    companyName: '',
+    companyDept: '',
+    welcomeMsg: '',
+    logoData: '',       // base64
+    logoUrl: '',
+    colorPrimary: '#1C3A5E',
+    colorAccent: '#27AE60',
+    colorBg: '#F7F4EF',
+  },
+  settings: {
+    allowAnonymous: true,
+    showPropuestas: true,
+    showObservaciones: true,
+    showProgress: true,
+    showScale: true,
+    scale: ['Nunca', 'Pocas veces', 'Frecuentemente', 'Siempre'],
+  },
+  globalQuestions: [
+    { id: 'gq1', text: '¿Consideras que el clima laboral en el área donde trabajas es bueno?', required: true },
+    { id: 'gq2', text: '¿En el trabajo mis opiniones son tomadas en cuenta?', required: true },
+    { id: 'gq3', text: '¿Las personas son tratadas con respeto, sin importar cuál sea su trabajo o área (acoso laboral)?', required: true },
+    { id: 'gq4', text: '¿Consideras que las actividades que se te asignan son bien planeadas?', required: true },
+    { id: 'gq5', text: '¿Mi líder en cada actividad me brinda información y retroalimentación necesaria para el logro del objetivo asignado?', required: true },
+    { id: 'gq6', text: '¿El personal respeta las líneas de mando conforme al organigrama y procesos escritos?', required: true },
+  ],
+  areas: [
+    { id: 'controles',   name: 'Controles',       customQ: [] },
+    { id: 'compras',     name: 'Compras y TI',    customQ: [{ id:'cq1', text:'¿Los procesos de compra están bien documentados?', required: false }] },
+    { id: 'montaje',     name: 'Montaje',          customQ: [{ id:'cq2', text:'¿Cuentas con el equipo y herramientas necesarias para tu trabajo?', required: false }] },
+    { id: 'diseno',      name: 'Diseño',           customQ: [{ id:'cq3', text:'¿Los requerimientos del cliente te llegan de forma clara y completa?', required: false }] },
+    { id: 'manufactura', name: 'Manufactura',      customQ: [] },
+    { id: 'admin',       name: 'Administración',   customQ: [] },
+    { id: 'calidad',     name: 'Calidad',          customQ: [{ id:'cq4', text:'¿Se respetan los dictámenes de calidad sin buscar alternativas para ignorarlos?', required: false }] },
+    { id: 'ventas',      name: 'Ventas',           customQ: [] },
+    { id: 'pm',          name: 'PM',               customQ: [{ id:'cq5', text:'¿Los proyectos que gestionas cuentan con información suficiente desde el inicio?', required: false }] },
+    { id: 'logistica',   name: 'Logística',        customQ: [] },
+  ],
+};
+
+let S = JSON.parse(JSON.stringify(DEFAULT_STATE)); // working state
+let selectedAreaId = null;
+let autoSaveTimer = null;
+
+// ── LOAD ──────────────────────────────────────────────────────
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Deep merge preserving defaults for missing keys
+      S = deepMerge(DEFAULT_STATE, parsed);
+    }
+  } catch(e) { console.warn('Could not load state', e); }
+  applyStateToUI();
+}
+
+function deepMerge(def, override) {
+  const result = JSON.parse(JSON.stringify(def));
+  for (const key in override) {
+    if (override[key] !== null && typeof override[key] === 'object' && !Array.isArray(override[key])) {
+      result[key] = deepMerge(result[key] || {}, override[key]);
+    } else {
+      result[key] = override[key];
+    }
+  }
+  return result;
+}
+
+// ── SAVE ──────────────────────────────────────────────────────
+function saveState() {
+  collectFormValues();
+  localStorage.setItem(STORE_KEY, JSON.stringify(S));
+  const now = new Date();
+  document.getElementById('lastSave').textContent = now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('saveStatus').textContent = 'Guardado · ' + now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+}
+
+function autoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    saveState();
+  }, 600);
+}
+
+function collectFormValues() {
+  // Identity
+  S.identity.companyName   = v('companyName');
+  S.identity.companyDept   = v('companyDept');
+  S.identity.welcomeMsg    = v('welcomeMsg');
+  S.identity.gasUrl        = v('gasUrl') || '';
+  if (S.identity.gasUrl) localStorage.setItem('climaiq_gas_url', S.identity.gasUrl);
+  S.identity.logoUrl       = v('logoUrl');
+  S.identity.colorPrimary  = v('colorPrimary');
+  S.identity.colorAccent   = v('colorAccent');
+  S.identity.colorBg       = v('colorBg');
+  // Settings
+  S.settings.allowAnonymous  = document.getElementById('tog-anon').checked;
+  S.settings.showPropuestas  = document.getElementById('tog-propuestas').checked;
+  S.settings.showObservaciones = document.getElementById('tog-obs').checked;
+  S.settings.showProgress    = document.getElementById('tog-progress').checked;
+  S.settings.showScale       = document.getElementById('tog-scale').checked;
+  S.settings.scale = [v('scale1'), v('scale2'), v('scale3'), v('scale4')];
+  // Update color previews
+  updateColorPreviews();
+}
+
+function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+
+function applyStateToUI() {
+  // Identity fields
+  setV('companyName', S.identity.companyName);
+  setV('companyDept', S.identity.companyDept);
+  setV('welcomeMsg', S.identity.welcomeMsg);
+  setV('gasUrl', S.identity.gasUrl || localStorage.getItem('climaiq_gas_url') || '');
+  setV('logoUrl', S.identity.logoUrl);
+  setV('colorPrimary', S.identity.colorPrimary);
+  setV('colorAccent', S.identity.colorAccent);
+  setV('colorBg', S.identity.colorBg);
+  // Logo
+  if (S.identity.logoData || S.identity.logoUrl) {
+    const src = S.identity.logoData || S.identity.logoUrl;
+    document.getElementById('logoPreview').src = src;
+    document.getElementById('logoPreview').style.display = 'block';
+    document.getElementById('logoPlaceholder').style.display = 'none';
+  }
+  // Settings toggles
+  document.getElementById('tog-anon').checked = S.settings.allowAnonymous;
+  document.getElementById('tog-propuestas').checked = S.settings.showPropuestas;
+  document.getElementById('tog-obs').checked = S.settings.showObservaciones;
+  document.getElementById('tog-progress').checked = S.settings.showProgress;
+  document.getElementById('tog-scale').checked = S.settings.showScale;
+  // Scale labels
+  const sc = S.settings.scale || ['Nunca','Pocas veces','Frecuentemente','Siempre'];
+  setV('scale1', sc[0]); setV('scale2', sc[1]); setV('scale3', sc[2]); setV('scale4', sc[3]);
+  // Render dynamic sections
+  renderAreas();
+  renderGlobalQList();
+  renderAreaChips();
+  updateColorPreviews();
+}
+
+function setV(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function goTo(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'preview') refreshPreview();
+  if (name === 'script') renderScript();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IDENTITY
+// ═══════════════════════════════════════════════════════════════
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast('El logo no debe superar 2MB', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    S.identity.logoData = ev.target.result;
+    document.getElementById('logoPreview').src = ev.target.result;
+    document.getElementById('logoPreview').style.display = 'block';
+    document.getElementById('logoPlaceholder').style.display = 'none';
+    autoSave();
+    toast('Logo cargado correctamente', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleLogoUrl() {
+  const url = v('logoUrl');
+  S.identity.logoUrl = url;
+  if (url) {
+    document.getElementById('logoPreview').src = url;
+    document.getElementById('logoPreview').style.display = 'block';
+    document.getElementById('logoPlaceholder').style.display = 'none';
+  }
+  autoSave();
+}
+
+function clearLogo() {
+  S.identity.logoData = '';
+  S.identity.logoUrl = '';
+  setV('logoUrl', '');
+  document.getElementById('logoPreview').style.display = 'none';
+  document.getElementById('logoPlaceholder').style.display = 'flex';
+  document.getElementById('logoFile').value = '';
+  autoSave();
+  toast('Logo eliminado');
+}
+
+function updateColorPreviews() {
+  const p = v('colorPrimary') || S.identity.colorPrimary;
+  const a = v('colorAccent') || S.identity.colorAccent;
+  document.getElementById('colorPreviewBadge').style.background = p;
+  document.getElementById('colorAccentBadge').style.background = a;
+}
+
+function resetColors() {
+  S.identity.colorPrimary = '#1C3A5E';
+  S.identity.colorAccent  = '#27AE60';
+  S.identity.colorBg      = '#F7F4EF';
+  setV('colorPrimary', S.identity.colorPrimary);
+  setV('colorAccent',  S.identity.colorAccent);
+  setV('colorBg',      S.identity.colorBg);
+  updateColorPreviews();
+  autoSave();
+  toast('Colores restaurados');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AREAS
+// ═══════════════════════════════════════════════════════════════
+function renderAreas() {
+  const grid = document.getElementById('areasGrid');
+  grid.innerHTML = S.areas.map(a => `
+    <div class="area-card">
+      <div class="area-card-top">
+        <input class="area-name-input" value="${escHtml(a.name)}"
+          oninput="updateAreaName('${a.id}', this.value)"
+          placeholder="Nombre del área">
+        <button class="area-delete" onclick="deleteArea('${a.id}')" title="Eliminar área">✕</button>
+      </div>
+      <div class="area-card-stats">
+        <div class="area-stat">
+          <strong>${S.globalQuestions.length}</strong>
+          <span>Preguntas globales</span>
+        </div>
+        <div class="area-stat">
+          <strong>${a.customQ.length}</strong>
+          <span>Exclusivas del área</span>
+        </div>
+      </div>
+    </div>
+  `).join('') + `
+    <div class="add-area-card" onclick="addArea()">
+      <div class="plus">+</div>
+      <span>Nueva área</span>
+    </div>
+  `;
+}
+
+function updateAreaName(id, val) {
+  const area = S.areas.find(a => a.id === id);
+  if (area) { area.name = val; autoSave(); renderAreaChips(); }
+}
+
+function addArea() {
+  const name = prompt('Nombre del nuevo área:');
+  if (!name || !name.trim()) return;
+  S.areas.push({ id: 'area_' + Date.now(), name: name.trim(), customQ: [] });
+  saveState();
+  renderAreas();
+  renderAreaChips();
+  toast(`Área "${name.trim()}" creada`, 'success');
+}
+
+function deleteArea(id) {
+  const area = S.areas.find(a => a.id === id);
+  if (!area) return;
+  if (!confirm(`¿Eliminar el área "${area.name}"? También se eliminarán sus preguntas exclusivas.`)) return;
+  S.areas = S.areas.filter(a => a.id !== id);
+  if (selectedAreaId === id) selectedAreaId = null;
+  saveState();
+  renderAreas();
+  renderAreaChips();
+  toast(`Área eliminada`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUESTIONS
+// ═══════════════════════════════════════════════════════════════
+function switchQTab(tab) {
+  document.querySelectorAll('.q-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('qtab-' + tab).classList.add('active');
+  document.getElementById('qtab-panel-global').style.display = tab === 'global' ? 'block' : 'none';
+  document.getElementById('qtab-panel-area').style.display = tab === 'area' ? 'block' : 'none';
+}
+
+// Global questions
+function renderGlobalQList() {
+  const list = document.getElementById('globalQList');
+  list.innerHTML = S.globalQuestions.map((q, i) => buildQRow(q, i, 'global')).join('');
+  document.getElementById('qcount-global').textContent = S.globalQuestions.length;
+  setupDragDrop(list, 'global');
+}
+
+function buildQRow(q, i, type) {
+  const isGlobal = type === 'global';
+  return `
+  <div class="q-row ${isGlobal ? '' : ''}" data-id="${q.id}" data-index="${i}" draggable="true">
+    <span class="q-drag" title="Arrastrar para reordenar">⋮⋮</span>
+    <div class="q-body">
+      <textarea class="q-textarea" rows="2"
+        oninput="${isGlobal ? `updateGlobalQ(${i}, this.value)` : `updateAreaQ('${selectedAreaId}', ${i}, this.value)`}"
+        >${escHtml(q.text)}</textarea>
+      <div class="q-meta">
+        <span class="badge ${isGlobal ? 'badge-global' : 'badge-custom'}">${isGlobal ? 'Global' : escHtml(S.areas.find(a=>a.id===selectedAreaId)?.name || '')}</span>
+        <span class="badge ${q.required ? 'badge-required' : 'badge-optional'}" id="reqbadge_${q.id}">${q.required ? 'Obligatoria' : 'Opcional'}</span>
+        <label class="q-toggle-req">
+          <input type="checkbox" style="margin:0;width:auto;" ${q.required ? 'checked' : ''}
+            onchange="${isGlobal ? `toggleGlobalReq(${i}, this.checked)` : `toggleAreaReq('${selectedAreaId}', ${i}, this.checked)`}">
+          Marcar obligatoria
+        </label>
+      </div>
+    </div>
+    <div class="q-actions">
+      <button class="q-btn" title="Mover arriba" onclick="${isGlobal ? `moveGlobalQ(${i},-1)` : `moveAreaQ('${selectedAreaId}',${i},-1)`}">↑</button>
+      <button class="q-btn" title="Mover abajo" onclick="${isGlobal ? `moveGlobalQ(${i},1)` : `moveAreaQ('${selectedAreaId}',${i},1)`}">↓</button>
+      <button class="q-btn danger" title="Eliminar pregunta" onclick="${isGlobal ? `deleteGlobalQ(${i})` : `deleteAreaQ('${selectedAreaId}',${i})`}">🗑</button>
+    </div>
+  </div>`;
+}
+
+function addGlobalQ() {
+  S.globalQuestions.push({ id: 'gq_' + Date.now(), text: 'Escribe aquí la nueva pregunta...', required: false });
+  saveState(); renderGlobalQList();
+  toast('Pregunta global agregada');
+}
+
+function updateGlobalQ(i, val) { S.globalQuestions[i].text = val; autoSave(); }
+function toggleGlobalReq(i, val) { S.globalQuestions[i].required = val; autoSave(); renderGlobalQList(); }
+function deleteGlobalQ(i) {
+  if (S.globalQuestions.length <= 1) { toast('Debe haber al menos una pregunta global', 'error'); return; }
+  if (!confirm('¿Eliminar esta pregunta?')) return;
+  S.globalQuestions.splice(i, 1);
+  saveState(); renderGlobalQList();
+}
+function moveGlobalQ(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= S.globalQuestions.length) return;
+  [S.globalQuestions[i], S.globalQuestions[j]] = [S.globalQuestions[j], S.globalQuestions[i]];
+  saveState(); renderGlobalQList();
+}
+
+// Area questions
+function renderAreaChips() {
+  const container = document.getElementById('areaChips');
+  let totalCustom = 0;
+  S.areas.forEach(a => totalCustom += a.customQ.length);
+  container.innerHTML = S.areas.map(a => `
+    <div class="area-chip ${selectedAreaId === a.id ? 'active' : ''}"
+      onclick="selectArea('${a.id}')">
+      ${escHtml(a.name)}
+      ${a.customQ.length > 0 ? `<span class="q-chip-count">${a.customQ.length}</span>` : ''}
+    </div>
+  `).join('');
+  document.getElementById('qcount-area').textContent = totalCustom;
+}
+
+function selectArea(id) {
+  selectedAreaId = id;
+  renderAreaChips();
+  renderAreaQs();
+}
+
+function renderAreaQs() {
+  const area = S.areas.find(a => a.id === selectedAreaId);
+  if (!area) return;
+  const content = document.getElementById('areaQContent');
+  if (area.customQ.length === 0) {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">✏️</div>
+        <p>No hay preguntas exclusivas para <strong>${escHtml(area.name)}</strong> todavía.</p>
+        <button class="btn btn-primary" onclick="addAreaQ('${area.id}')">+ Agregar primera pregunta</button>
+      </div>
+      <button class="add-q-btn" onclick="addAreaQ('${area.id}')">+ Agregar pregunta para ${escHtml(area.name)}</button>`;
+  } else {
+    content.innerHTML = `
+      <div class="q-list" id="areaQList">${area.customQ.map((q,i) => buildQRow(q, i, 'area')).join('')}</div>
+      <button class="add-q-btn" onclick="addAreaQ('${area.id}')">+ Agregar pregunta para ${escHtml(area.name)}</button>`;
+  }
+}
+
+function addAreaQ(areaId) {
+  const area = S.areas.find(a => a.id === areaId);
+  if (!area) return;
+  area.customQ.push({ id: 'cq_' + Date.now(), text: 'Escribe aquí la nueva pregunta para ' + area.name + '...', required: false });
+  saveState(); renderAreaChips(); renderAreaQs();
+  toast('Pregunta agregada para ' + area.name);
+}
+
+function updateAreaQ(areaId, i, val) {
+  const area = S.areas.find(a => a.id === areaId);
+  if (area) { area.customQ[i].text = val; autoSave(); }
+}
+function toggleAreaReq(areaId, i, val) {
+  const area = S.areas.find(a => a.id === areaId);
+  if (area) { area.customQ[i].required = val; autoSave(); renderAreaQs(); }
+}
+function deleteAreaQ(areaId, i) {
+  if (!confirm('¿Eliminar esta pregunta?')) return;
+  const area = S.areas.find(a => a.id === areaId);
+  if (area) { area.customQ.splice(i, 1); saveState(); renderAreaChips(); renderAreaQs(); }
+}
+function moveAreaQ(areaId, i, dir) {
+  const area = S.areas.find(a => a.id === areaId);
+  if (!area) return;
+  const j = i + dir;
+  if (j < 0 || j >= area.customQ.length) return;
+  [area.customQ[i], area.customQ[j]] = [area.customQ[j], area.customQ[i]];
+  saveState(); renderAreaQs();
+}
+
+// Drag & Drop for global questions
+function setupDragDrop(list, type) {
+  let dragSrc = null;
+  list.querySelectorAll('.q-row').forEach(row => {
+    row.addEventListener('dragstart', e => { dragSrc = row; row.classList.add('dragging'); });
+    row.addEventListener('dragend', e => { row.classList.remove('dragging'); list.querySelectorAll('.q-row').forEach(r => r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', e => { e.preventDefault(); if (row !== dragSrc) row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrc === row) return;
+      const srcIdx = parseInt(dragSrc.dataset.index);
+      const dstIdx = parseInt(row.dataset.index);
+      if (type === 'global') {
+        const tmp = S.globalQuestions.splice(srcIdx, 1)[0];
+        S.globalQuestions.splice(dstIdx, 0, tmp);
+        saveState(); renderGlobalQList();
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PREVIEW
+// ═══════════════════════════════════════════════════════════════
+function setDevice(d, btn) {
+  document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const wrap = document.getElementById('previewWrap');
+  if (d === 'mobile') wrap.style.maxWidth = '390px';
+  else if (d === 'tablet') wrap.style.maxWidth = '768px';
+  else wrap.style.maxWidth = '100%';
+}
+
+function refreshPreview() {
+  saveState();
+  const frame = document.getElementById('previewFrame');
+  const html = buildSurveyHTML();
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  frame.src = url;
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SURVEY HTML BUILDER (encuesta_v2 embebida con config actual)
+// ═══════════════════════════════════════════════════════════════
+function buildSurveyHTML() {
+  const identity = S.identity;
+  const logoSrc = identity.logoData || identity.logoUrl || '';
+  const companyName = identity.companyName || 'Clima Laboral';
+  const dept = identity.companyDept || '';
+  const welcome = identity.welcomeMsg || 'Tu opinión es confidencial y nos ayuda a mejorar el ambiente de trabajo.';
+  const cp = identity.colorPrimary || '#1C3A5E';
+  const ca = identity.colorAccent || '#27AE60';
+  const cb = identity.colorBg || '#F7F4EF';
+  const sc = S.settings.scale || ['Nunca','Pocas veces','Frecuentemente','Siempre'];
+  const configJSON = JSON.stringify(S);
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${companyName} — Encuesta de Clima Laboral</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;600;900&family=Epilogue:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--cp:${cp};--ca:${ca};--cb:${cb};--ink:#1C1814;--ink2:#5C5248;--ink3:#9C948A;--surface:#fff;--surface2:#f4f0ea;--border:#D8D0C4;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Epilogue',sans-serif;background:var(--cb);color:var(--ink);min-height:100vh;padding:1.5rem 1rem;}
+.wrap{max-width:640px;margin:0 auto;}
+.survey-header{background:var(--cp);color:#fff;padding:2rem 2rem 1.8rem;margin-bottom:1.5rem;position:relative;overflow:hidden;}
+.survey-header::after{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.06);}
+.logo-wrap{margin-bottom:1rem;} .logo-wrap img{height:48px;object-fit:contain;filter:brightness(0) invert(1);opacity:0.9;}
+.company-name{font-family:'Fraunces',serif;font-size:1.4rem;font-weight:900;letter-spacing:-0.02em;margin-bottom:0.2rem;}
+.company-dept{font-size:0.75rem;opacity:0.7;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.8rem;}
+.survey-title{font-family:'Fraunces',serif;font-size:clamp(1.4rem,4vw,1.9rem);font-weight:300;font-style:italic;margin-bottom:0.6rem;opacity:0.95;}
+.survey-desc{font-size:0.82rem;opacity:0.78;font-weight:300;line-height:1.5;max-width:440px;}
+.progress-wrap{display:flex;align-items:center;gap:0.8rem;background:var(--surface);border:1px solid var(--border);padding:0.7rem 1rem;margin-bottom:1.2rem;${!S.settings.showProgress ? 'display:none!important;' : ''}}
+.pbar{flex:1;height:5px;background:#e0d9cc;overflow:hidden;} .pfill{height:100%;background:linear-gradient(90deg,var(--cp),var(--ca));width:0%;transition:width .4s;}
+.plabel{font-size:0.72rem;color:var(--ink3);font-weight:600;white-space:nowrap;}
+.card{background:var(--surface);border:1px solid var(--border);margin-bottom:1rem;overflow:hidden;}
+.card-head{background:var(--surface2);border-bottom:1px solid var(--border);padding:0.8rem 1.2rem;display:flex;align-items:center;gap:0.5rem;}
+.card-num{width:22px;height:22px;border-radius:50%;background:var(--cp);color:#fff;font-size:0.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.card-label{font-size:0.75rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink2);}
+.card-body{padding:1.2rem;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.f{display:flex;flex-direction:column;gap:0.35rem;} .f.full{grid-column:1/-1;}
+.fl{font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink3);}
+.fl .req{color:#C0392B;}
+input[type=text],select,textarea{font-family:'Epilogue',sans-serif;font-size:0.875rem;color:var(--ink);background:var(--cb);border:1px solid var(--border);padding:0.6rem 0.8rem;outline:none;width:100%;transition:border-color .18s;}
+input:focus,select:focus,textarea:focus{border-color:var(--cp);box-shadow:0 0 0 3px rgba(28,58,94,0.08);background:#fff;}
+textarea{resize:vertical;}
+.anon-row{display:flex;align-items:center;gap:0.8rem;padding:0.9rem 1rem;background:rgba(28,58,94,0.04);border:1.5px solid rgba(28,58,94,0.12);cursor:pointer;user-select:none;margin-bottom:1rem;transition:all .18s;${!S.settings.allowAnonymous?'display:none!important;':''}}
+.anon-row:hover{border-color:rgba(28,58,94,0.3);}
+.anon-row.on{background:rgba(28,58,94,0.07);border-color:var(--cp);}
+.anon-icon{font-size:1.3rem;} .anon-info h4{font-size:0.85rem;font-weight:600;margin-bottom:0.1rem;} .anon-info p{font-size:0.73rem;color:var(--ink3);}
+.anon-check{margin-left:auto;width:20px;height:20px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.75rem;transition:all .18s;}
+.anon-row.on .anon-check{background:var(--cp);border-color:var(--cp);color:#fff;}
+.scale-bar{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;padding:0.7rem 1rem;background:var(--surface2);border:1px solid var(--border);margin-bottom:1rem;font-size:0.76rem;${!S.settings.showScale?'display:none!important;':''}}
+.scale-bar span{color:var(--ink3);font-weight:500;}
+.scale-items{display:flex;gap:0.7rem;flex-wrap:wrap;}
+.si{display:flex;align-items:center;gap:0.3rem;font-size:0.74rem;}
+.sd{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#fff;}
+.qcard{border:1px solid var(--border);margin-bottom:0.8rem;overflow:hidden;transition:border-color .18s;}
+.qcard:hover{border-color:#aaa;}
+.qcard.done{border-color:rgba(39,174,96,0.4);}
+.qcard.cust{border-left:3px solid var(--ca);}
+.qt{padding:0.9rem 1.1rem 0.6rem;font-size:0.875rem;line-height:1.45;}
+.qn{font-family:'Fraunces',serif;font-weight:600;color:var(--cp);margin-right:0.3rem;}
+.abadge{display:inline-block;font-size:0.6rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;padding:0.1rem 0.45rem;border-radius:20px;background:rgba(39,174,96,0.1);color:#1A6B45;vertical-align:middle;margin-left:0.4rem;}
+.rrow{display:flex;padding:0.7rem 1rem;gap:0.4rem;background:var(--surface2);}
+.ropt{flex:1;min-width:54px;}
+.ropt input{display:none;}
+.rface{display:flex;flex-direction:column;align-items:center;gap:0.25rem;padding:0.55rem 0.2rem;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s;text-align:center;}
+.rface:hover{border-color:var(--cp);}
+.ropt input[value="1"]:checked+.rface{background:#C0392B;border-color:#C0392B;color:#fff;}
+.ropt input[value="2"]:checked+.rface{background:#D68910;border-color:#D68910;color:#fff;}
+.ropt input[value="3"]:checked+.rface{background:#2471A3;border-color:#2471A3;color:#fff;}
+.ropt input[value="4"]:checked+.rface{background:var(--ca);border-color:var(--ca);color:#fff;}
+.remoji{font-size:1rem;line-height:1;} .rnum{font-family:'Fraunces',serif;font-weight:700;font-size:0.9rem;} .rlabel{font-size:0.58rem;opacity:0.85;}
+.submit-wrap{text-align:center;padding:1.5rem;}
+.btn-sub{background:var(--cp);color:#fff;border:none;padding:0.9rem 3rem;font-family:'Epilogue',sans-serif;font-size:0.875rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;transition:all .18s;}
+.btn-sub:hover{opacity:0.88;}
+.sub-note{font-size:0.74rem;color:var(--ink3);margin-top:0.7rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="survey-header">
+  ${logoSrc ? `<div class="logo-wrap"><img src="${logoSrc}" alt="Logo"></div>` : ''}
+  ${companyName ? `<div class="company-name">${escHtml(companyName)}</div>` : ''}
+  ${dept ? `<div class="company-dept">${escHtml(dept)}</div>` : ''}
+  <div class="survey-title">Encuesta de Clima Laboral</div>
+  <div class="survey-desc">${escHtml(welcome)}</div>
+</div>
+
+<div class="progress-wrap"><div class="pbar"><div class="pfill" id="pfill"></div></div><div class="plabel" id="plabel">0%</div></div>
+
+<form id="sf" novalidate>
+<div class="card">
+  <div class="card-head"><div class="card-num">1</div><div class="card-label">Datos del Empleado</div></div>
+  <div class="card-body">
+    <div class="anon-row" id="anonRow" onclick="toggleAnon()">
+      <span class="anon-icon" id="anonIcon">🔒</span>
+      <div class="anon-info"><h4 id="anonTitle">Responder de forma anónima</h4><p id="anonDesc">Tu nombre no se guardará en la base de datos</p></div>
+      <div class="anon-check" id="anonCheck"></div>
+    </div>
+    <div class="fg">
+      <div class="f"><label class="fl">Nombre completo <span class="req" id="nameReq">*</span></label><input type="text" name="nombre" id="nombreInput" placeholder="Tu nombre completo"></div>
+      <div class="f"><label class="fl">Cargo / Puesto <span class="req">*</span></label><input type="text" name="cargo" placeholder="Tu cargo actual" required></div>
+      <div class="f"><label class="fl">Jefe Inmediato <span class="req">*</span></label><input type="text" name="jefe" placeholder="Nombre de tu jefe directo" required></div>
+      <div class="f"><label class="fl">Área <span class="req">*</span></label>
+        <select name="area" id="areaSelect" required onchange="onAreaChange()">
+          <option value="">— Selecciona tu área —</option>
+          ${S.areas.map(a => `<option value="${a.id}">${escHtml(a.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scale-bar"><span>Escala:</span><div class="scale-items">
+  <div class="si"><div class="sd" style="background:#C0392B">1</div>${escHtml(sc[0])}</div>
+  <div class="si"><div class="sd" style="background:#D68910">2</div>${escHtml(sc[1])}</div>
+  <div class="si"><div class="sd" style="background:#2471A3">3</div>${escHtml(sc[2])}</div>
+  <div class="si"><div class="sd" style="background:#27AE60">4</div>${escHtml(sc[3])}</div>
+</div></div>
+
+<div class="card">
+  <div class="card-head"><div class="card-num">2</div><div class="card-label">Evaluación General</div></div>
+  <div style="padding:0;">
+    ${S.globalQuestions.map((q,i) => buildPreviewQ(q, i, false, '', sc)).join('')}
+  </div>
+</div>
+
+<div class="card" id="areaCard" style="display:none;">
+  <div class="card-head"><div class="card-num" id="areaCardNum">3</div><div class="card-label" id="areaCardLabel">Preguntas del Área</div></div>
+  <div style="padding:0;" id="areaQs"></div>
+</div>
+
+${S.settings.showPropuestas || S.settings.showObservaciones ? `
+<div class="card">
+  <div class="card-head"><div class="card-num" id="commentsNum">3</div><div class="card-label">Comentarios</div></div>
+  <div class="card-body">
+    ${S.settings.showPropuestas ? `<div class="f" style="margin-bottom:0.9rem;"><label class="fl">¿Qué propones para mejorar el clima laboral?</label><textarea name="propuesta" rows="3" placeholder="Escribe tus sugerencias..."></textarea></div>` : ''}
+    ${S.settings.showObservaciones ? `<div class="f"><label class="fl">Observaciones adicionales</label><textarea name="observaciones" rows="2" placeholder="Cualquier comentario..."></textarea></div>` : ''}
+  </div>
+</div>` : ''}
+
+<div class="submit-wrap">
+  <button type="submit" class="btn-sub">Enviar Encuesta →</button>
+  <p class="sub-note">Tus respuestas son confidenciales y se utilizarán únicamente para mejorar el clima laboral.</p>
+</div>
+</form>
+</div>
+
+<script>
+const AREAS = ${JSON.stringify(S.areas)};
+const GLOBAL_QS = ${JSON.stringify(S.globalQuestions)};
+const SCALE = ${JSON.stringify(sc)};
+let isAnon = false;
+let currentAreaId = null;
+
+function toggleAnon(){
+  isAnon=!isAnon;
+  const row=document.getElementById('anonRow');
+  const ni=document.getElementById('nombreInput');
+  row.classList.toggle('on',isAnon);
+  document.getElementById('anonIcon').textContent=isAnon?'🔒':'👤';
+  document.getElementById('anonTitle').textContent=isAnon?'Respondiendo de forma anónima':'Responder de forma anónima';
+  document.getElementById('anonDesc').textContent=isAnon?'Tu nombre NO se guardará':'Tu nombre se guardará en la base de datos';
+  document.getElementById('anonCheck').textContent=isAnon?'✓':'';
+  ni.disabled=isAnon; ni.value=''; ni.placeholder=isAnon?'Anónimo':'Tu nombre completo';
+  document.getElementById('nameReq').style.display=isAnon?'none':'inline';
+  updateProgress();
+}
+
+function onAreaChange(){
+  const areaId=document.getElementById('areaSelect').value;
+  currentAreaId=areaId;
+  const area=AREAS.find(a=>a.id===areaId);
+  const card=document.getElementById('areaCard');
+  const commNum=document.getElementById('commentsNum');
+  if(area&&area.customQ.length>0){
+    card.style.display='block';
+    document.getElementById('areaCardLabel').textContent='Preguntas · '+area.name;
+    document.getElementById('areaCardNum').textContent=3;
+    if(commNum) commNum.textContent=4;
+    document.getElementById('areaQs').innerHTML=area.customQ.map((q,i)=>\`
+      <div class="qcard cust" id="aqcard_\${i}">
+        <div class="qt"><span class="qn">\${GLOBAL_QS.length+i+1}.</span>\${q.text}<span class="abadge">\${area.name}</span></div>
+        <div class="rrow">
+          \${[1,2,3,4].map((v,vi)=>\`<label class="ropt"><input type="radio" name="q_\${areaId}_\${i}" value="\${v}" onchange="markDone('aqcard_\${i}');updateProgress()"><div class="rface"><span class="remoji">\${['😟','😐','🙂','😊'][vi]}</span><span class="rnum">\${v}</span><span class="rlabel">\${SCALE[vi]}</span></div></label>\`).join('')}
+        </div>
+      </div>
+    \`).join('');
+  } else {
+    card.style.display='none';
+    if(commNum) commNum.textContent=3;
+  }
+  updateProgress();
+}
+
+function markDone(id){document.getElementById(id)?.classList.add('done');}
+
+function updateProgress(){
+  let total=0,filled=0;
+  if(!isAnon){total++;if(document.querySelector('[name=nombre]').value.trim())filled++;}
+  total+=3;
+  if(document.querySelector('[name=cargo]').value.trim())filled++;
+  if(document.querySelector('[name=jefe]').value.trim())filled++;
+  if(document.querySelector('[name=area]').value)filled++;
+  GLOBAL_QS.forEach((_,i)=>{total++;if(document.querySelector(\`[name=q_global_\${i}]:checked\`))filled++;});
+  if(currentAreaId){
+    const a=AREAS.find(x=>x.id===currentAreaId);
+    if(a)a.customQ.forEach((q,i)=>{if(q.required){total++;if(document.querySelector(\`[name=q_\${currentAreaId}_\${i}]:checked\`))filled++;}});
+  }
+  const pct=total>0?Math.round(filled/total*100):0;
+  const pf=document.getElementById('pfill');
+  const pl=document.getElementById('plabel');
+  if(pf)pf.style.width=pct+'%';
+  if(pl)pl.textContent=pct+'%';
+}
+
+document.getElementById('sf').addEventListener('input',updateProgress);
+document.getElementById('sf').addEventListener('change',updateProgress);
+
+document.getElementById('sf').addEventListener('submit',function(e){
+  e.preventDefault();
+  const cargo=document.querySelector('[name=cargo]').value.trim();
+  const jefe=document.querySelector('[name=jefe]').value.trim();
+  const area=document.querySelector('[name=area]').value;
+  const nombre=isAnon?'Anónimo':document.querySelector('[name=nombre]').value.trim();
+  if(!cargo||!jefe||!area||((!isAnon)&&!nombre)){
+    alert('Por favor completa todos los campos obligatorios.');return;
+  }
+  let miss=false;
+  GLOBAL_QS.forEach((_,i)=>{if(!document.querySelector(\`[name=q_global_\${i}]:checked\`))miss=true;});
+  if(miss){alert('Por favor responde todas las preguntas de evaluación.');return;}
+  alert('✅ Respuesta enviada correctamente.\\n\\n(En la versión de producción, esto se enviaría a Google Sheets automáticamente.)');
+});
+<\/script>
+</body>
+</html>`;
+}
+
+function buildPreviewQ(q, i, isCustom, areaName, sc) {
+  const emojis = ['😟','😐','🙂','😊'];
+  return `<div class="qcard${isCustom?' cust':''}" id="qcard_global_${i}">
+    <div class="qt"><span class="qn">${i+1}.</span>${escHtml(q.text)}${isCustom ? `<span class="abadge">${escHtml(areaName)}</span>` : ''}</div>
+    <div class="rrow">${[1,2,3,4].map((v,vi) => `
+      <label class="ropt"><input type="radio" name="q_global_${i}" value="${v}" onchange="markDone('qcard_global_${i}');updateProgress()">
+      <div class="rface"><span class="remoji">${emojis[vi]}</span><span class="rnum">${v}</span><span class="rlabel">${escHtml(sc[vi])}</span></div></label>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APPS SCRIPT
+// ═══════════════════════════════════════════════════════════════
+function renderScript() {
+  const code = generateScript();
+  const el = document.getElementById('scriptCode');
+  el.innerHTML = code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/(\/\/ .+)/g,'<span class="c-comment">$1</span>')
+    .replace(/\b(function|const|let|var|return|if|else|try|catch|forEach|new|true|false|null)\b/g,'<span class="c-kw">$1</span>')
+    .replace(/'([^']*)'/g,"<span class='c-str'>'$1'</span>")
+    .replace(/\b(\d+)\b/g,'<span class="c-num">$1</span>');
+}
+
+// La clave de publicación NO se escribe en este archivo. Vive en el navegador
+// de quien administra y aquí solo se inserta en el código que se va a pegar en
+// Google. Es lo que permite que el panel viva en una página pública sin
+// regalar la llave que deja reescribirle las preguntas a una encuesta abierta.
+// Cuando el sistema se venda a varios clientes, cada uno tendrá la suya.
+function claveAdmin() {
+  return (localStorage.getItem('climaiq_clave_pub') || '').trim();
+}
+
+function generateScript() {
+  // Script GENÉRICO: el mismo sirve para todas las empresas.
+  // Se pega una sola vez en el proyecto de Apps Script del Google Sheets
+  // y ya no se vuelve a tocar: la encuesta le manda en cada respuesta
+  // a qué hoja va (_sheet) y con qué columnas (_cols).
+  const clave = claveAdmin() || 'ESCRIBE-AQUI-TU-CLAVE';
+  return `// ══════════════════════════════════════════════════════════════
+// ClimaIQ — Google Apps Script MULTIEMPRESA
+//
+// Se pega UNA sola vez y ya no se vuelve a tocar.
+// No hay que regenerarlo al cambiar preguntas ni al abrir la
+// encuesta de otra empresa: la encuesta le dice en cada respuesta
+// a qué hoja va (_sheet) y con qué columnas (_cols).
+//
+// Cada empresa queda en su propia pestaña del mismo Google Sheets.
+// El dashboard las lista en "Elegir Encuesta".
+// ══════════════════════════════════════════════════════════════
+
+var HOJA_POR_DEFECTO = 'Respuestas';
+var COL_FECHA = 'Fecha Registro';
+var ZONA = 'America/Mexico_City';
+
+// ── PUBLICACIÓN DE ENCUESTAS ──────────────────────────────────
+// El panel publica aquí la encuesta ya armada y la página del
+// repositorio la lee al abrirse. Así una encuesta nueva no obliga
+// a tocar el repositorio: se guarda y queda viva al instante.
+var HOJA_ENCUESTAS = '_encuestas';
+// Una celda de Google Sheets no acepta más de 50 000 caracteres, y la
+// encuesta con logo pesa más que eso: se guarda partida en varias.
+var MAX_CELDA = 45000;
+var COLS_ENCUESTA = ['id', 'nombre', 'hoja', 'activa', 'actualizada'];
+// Publicar es escritura: sin esta clave cualquiera que descubra la URL
+// podría cambiarle las preguntas a una encuesta abierta. Vive aquí y en
+// el navegador de quien administra; la encuesta publicada nunca la trae.
+var CLAVE_ADMIN = '${clave}';
+
+// Columnas que no son preguntas de la escala 1-4
+var META = [
+  'Nombre', 'Cargo', 'Jefe Inmediato', 'Área', 'Area',
+  'Anónimo', 'Anonimo', 'Propuestas de mejora', 'Observaciones',
+  'Timestamp', 'Fecha', COL_FECHA
+];
+
+// ── ENTRADA: guardar una respuesta ────────────────────────────
+function doPost(e) {
+  try {
+    var data = leerPayload(e);
+    // El panel usa la misma entrada para publicar encuestas
+    if (data._op === 'saveSurvey')   return responder(guardarEncuesta(data));
+    if (data._op === 'deleteSurvey') return responder(borrarEncuesta(data));
+    var hoja = guardarRespuesta(data);
+    return responder({ success: true, sheet: hoja });
+  } catch (err) {
+    return responder({ success: false, error: err.toString() });
+  }
+}
+
+// ── ENTRADA: consultas del dashboard ──────────────────────────
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  try {
+    if (p.test) {
+      return responder({
+        status: 'ok',
+        message: 'ClimaIQ multiempresa activo',
+        hojas: listarHojas().length
+      });
+    }
+    if (p.action === 'listSheets') {
+      return responder({ success: true, sheets: listarHojas() });
+    }
+    if (p.action === 'getData') {
+      return responder(obtenerDatos(p.sheet));
+    }
+    if (p.action === 'archiveAndReset') {
+      return responder(archivarHoja(p.sheet, p.newName));
+    }
+    if (p.action === 'getSurvey') {
+      return responder(obtenerEncuesta(p.id));
+    }
+    if (p.action === 'listSurveys') {
+      return responder({ success: true, surveys: listarEncuestas() });
+    }
+    return responder({
+      success: false,
+      error: 'Parametro no reconocido. Usa ?test=1, ?action=getData, ?action=listSheets, ?action=getSurvey'
+    });
+  } catch (err) {
+    return responder({ success: false, error: err.toString() });
+  }
+}
+
+// ── GUARDAR ───────────────────────────────────────────────────
+function guardarRespuesta(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var nombre = nombreHoja(data);
+  var hoja = ss.getSheetByName(nombre);
+  if (!hoja) hoja = ss.insertSheet(nombre, ss.getSheets().length);
+
+  var cols = (data._cols && data._cols.length) ? data._cols : columnasDesdeDatos(data);
+
+  // Hoja recién creada: escribir encabezados
+  if (hoja.getLastRow() === 0) {
+    var encabezados = [];
+    for (var i = 0; i < cols.length; i++) {
+      encabezados.push(limpiar(cols[i].label || cols[i].key));
+    }
+    encabezados.push(COL_FECHA);
+    hoja.appendRow(encabezados);
+    formatoEncabezado(hoja, encabezados.length);
+  }
+
+  var headers = leerEncabezados(hoja);
+
+  // Preguntas nuevas que todavía no tienen columna: se insertan
+  // antes de "Fecha Registro" para no romper lo ya capturado
+  for (var c = 0; c < cols.length; c++) {
+    var etiqueta = limpiar(cols[c].label || cols[c].key);
+    if (!etiqueta || headers.indexOf(etiqueta) !== -1) continue;
+
+    var iFecha = headers.indexOf(COL_FECHA);
+    var pos;
+    if (iFecha >= 0) {
+      hoja.insertColumnBefore(iFecha + 1);
+      pos = iFecha + 1;
+    } else {
+      hoja.insertColumnAfter(hoja.getLastColumn());
+      pos = hoja.getLastColumn();
+    }
+    hoja.getRange(1, pos).setValue(etiqueta);
+    headers.splice(pos - 1, 0, etiqueta);
+    formatoEncabezado(hoja, headers.length);
+  }
+
+  // Mapa etiqueta -> clave del payload
+  var claves = {};
+  for (var k = 0; k < cols.length; k++) {
+    claves[limpiar(cols[k].label || cols[k].key)] = cols[k].key;
+  }
+
+  var fila = [];
+  for (var h = 0; h < headers.length; h++) {
+    if (headers[h] === COL_FECHA) {
+      fila.push(Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm:ss'));
+    } else {
+      var clave = claves[headers[h]];
+      fila.push(clave ? formatoValor(data[clave]) : '');
+    }
+  }
+
+  hoja.appendRow(fila);
+  return hoja.getName();
+}
+
+// ── LEER ──────────────────────────────────────────────────────
+function obtenerDatos(nombreSolicitado) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = null;
+
+  if (nombreSolicitado) hoja = ss.getSheetByName(String(nombreSolicitado).trim());
+  if (!hoja) hoja = primeraHojaVisible(ss);
+  if (!hoja) return { success: false, error: 'No hay hojas con respuestas.' };
+
+  var valores = hoja.getDataRange().getValues();
+  if (valores.length < 2) {
+    return { success: true, data: [], questions: [], total: 0, sheet: hoja.getName() };
+  }
+
+  var headers = leerEncabezadosDe(valores[0]);
+  var indice = {};
+  for (var i = 0; i < headers.length; i++) indice[headers[i]] = i;
+
+  // Es pregunta la columna que no sea meta y que tenga al menos una
+  // respuesta válida (1 a 4) en toda la hoja. Se revisan TODAS las filas,
+  // no una muestra: así una pregunta que solo contestó un área tardía
+  // no se pierde, y una columna de texto suelta no se cuela como dimensión.
+  var preguntas = [];
+  for (var h = 0; h < headers.length; h++) {
+    if (!headers[h] || esMeta(headers[h])) continue;
+    var tieneEscala = false;
+    for (var f = 1; f < valores.length; f++) {
+      var vv = parseInt(valores[f][h], 10);
+      if (vv >= 1 && vv <= 4) { tieneEscala = true; break; }
+    }
+    if (!tieneEscala) continue;
+    preguntas.push({ key: 'q_' + preguntas.length, label: headers[h], col: h });
+  }
+
+  var filas = [];
+  for (var r = 1; r < valores.length; r++) {
+    var row = valores[r];
+
+    var conRespuesta = false;
+    for (var q = 0; q < preguntas.length; q++) {
+      var v = parseInt(row[preguntas[q].col], 10);
+      if (v >= 1 && v <= 4) { conRespuesta = true; break; }
+    }
+    if (!conRespuesta) continue;
+
+    var obj = {
+      nombre:        texto(row, indice, ['Nombre']) || 'Anónimo',
+      cargo:         texto(row, indice, ['Cargo']),
+      jefe:          texto(row, indice, ['Jefe Inmediato']),
+      area:          texto(row, indice, ['Área', 'Area']) || 'Sin área',
+      propuesta:     texto(row, indice, ['Propuestas de mejora']),
+      observaciones: texto(row, indice, ['Observaciones'])
+    };
+    for (var p = 0; p < preguntas.length; p++) {
+      var val = parseInt(row[preguntas[p].col], 10);
+      obj[preguntas[p].key] = (val >= 1 && val <= 4) ? val : null;
+    }
+    filas.push(obj);
+  }
+
+  var soloClaveEtiqueta = [];
+  for (var s = 0; s < preguntas.length; s++) {
+    soloClaveEtiqueta.push({ key: preguntas[s].key, label: preguntas[s].label });
+  }
+
+  return {
+    success: true,
+    data: filas,
+    questions: soloClaveEtiqueta,
+    total: filas.length,
+    sheet: hoja.getName(),
+    updatedAt: Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm')
+  };
+}
+
+// ── ENCUESTAS PUBLICADAS ──────────────────────────────────────
+// Una fila por encuesta. Las cinco primeras columnas son los datos que
+// se ven de un vistazo; de la sexta en adelante va la encuesta armada,
+// partida en pedazos porque no cabe en una sola celda.
+function hojaEncuestas(crear) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(HOJA_ENCUESTAS);
+  if (!hoja && crear) {
+    hoja = ss.insertSheet(HOJA_ENCUESTAS, ss.getSheets().length);
+    hoja.appendRow(COLS_ENCUESTA.concat(['contenido']));
+    formatoEncabezado(hoja, COLS_ENCUESTA.length + 1);
+    hoja.hideSheet();
+  }
+  return hoja;
+}
+
+function filaDeEncuesta(hoja, id) {
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) return 0;
+  var ids = hoja.getRange(2, 1, ultima - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim() === id) return i + 2;
+  }
+  return 0;
+}
+
+// Cada pedazo se guarda con una barra al frente y se le quita al leerlo.
+// Es lo que evita que la hoja convierta en fórmula un pedazo que empiece
+// por "=", "+" o "-", que corrompería la encuesta sin avisar.
+var MARCA = '|';
+
+function contenidoDeFila(hoja, fila) {
+  var ultimaCol = hoja.getLastColumn();
+  if (ultimaCol <= COLS_ENCUESTA.length) return '';
+  var trozos = hoja.getRange(fila, COLS_ENCUESTA.length + 1, 1, ultimaCol - COLS_ENCUESTA.length).getValues()[0];
+  var partes = [];
+  for (var i = 0; i < trozos.length; i++) {
+    var t = String(trozos[i] === null || trozos[i] === undefined ? '' : trozos[i]);
+    if (!t) continue;
+    partes.push(t.charAt(0) === MARCA ? t.substring(1) : t);
+  }
+  return partes.join('');
+}
+
+function guardarEncuesta(data) {
+  if (String(data._clave || '') !== CLAVE_ADMIN) {
+    return { success: false, error: 'Clave de publicación incorrecta.' };
+  }
+  var id = idEncuesta(data.id || data.nombre);
+  if (!id) return { success: false, error: 'La encuesta necesita un nombre.' };
+  if (!data.html) return { success: false, error: 'No se recibió la encuesta armada.' };
+
+  var hoja = hojaEncuestas(true);
+  var contenido = JSON.stringify({ html: String(data.html), config: data.config || null });
+  var trozos = partir(contenido, MAX_CELDA);
+
+  // La hoja debe tener columnas suficientes para el pedazo más grande
+  // que haya guardado cualquier encuesta, y las sobrantes se limpian.
+  var necesarias = COLS_ENCUESTA.length + trozos.length;
+  if (hoja.getMaxColumns() < necesarias) {
+    hoja.insertColumnsAfter(hoja.getMaxColumns(), necesarias - hoja.getMaxColumns());
+  }
+
+  var fila = filaDeEncuesta(hoja, id);
+  if (!fila) fila = Math.max(2, hoja.getLastRow() + 1);
+
+  // Toda la fila se marca como texto antes de escribirla. Sin esto la hoja
+  // interpreta lo que guarda: la fecha se vuelve objeto Date, y un pedazo de
+  // encuesta que empiece por "=" o "+" se convierte en fórmula y se corrompe.
+  hoja.getRange(fila, 1, 1, hoja.getMaxColumns()).setNumberFormat('@');
+
+  var activa = data.activa === false ? 'NO' : 'SI';
+  hoja.getRange(fila, 1, 1, COLS_ENCUESTA.length).setValues([[
+    id,
+    String(data.nombre || id),
+    String(data.hoja || data.nombre || id),
+    activa,
+    Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm')
+  ]]);
+
+  var anchoTotal = hoja.getMaxColumns() - COLS_ENCUESTA.length;
+  var celdas = [];
+  for (var i = 0; i < anchoTotal; i++) celdas.push(i < trozos.length ? MARCA + trozos[i] : '');
+  hoja.getRange(fila, COLS_ENCUESTA.length + 1, 1, anchoTotal).setValues([celdas]);
+
+  // Solo una encuesta contesta el link corto sin parámetro
+  if (activa === 'SI') desactivarOtras(hoja, fila);
+
+  return { success: true, id: id, nombre: String(data.nombre || id), activa: activa === 'SI', partes: trozos.length };
+}
+
+function desactivarOtras(hoja, filaViva) {
+  var ultima = hoja.getLastRow();
+  for (var f = 2; f <= ultima; f++) {
+    if (f === filaViva) continue;
+    if (String(hoja.getRange(f, 4).getValue()).toUpperCase() === 'SI') hoja.getRange(f, 4).setValue('NO');
+  }
+}
+
+function borrarEncuesta(data) {
+  if (String(data._clave || '') !== CLAVE_ADMIN) {
+    return { success: false, error: 'Clave de publicación incorrecta.' };
+  }
+  var hoja = hojaEncuestas(false);
+  if (!hoja) return { success: false, error: 'No hay encuestas publicadas.' };
+  var fila = filaDeEncuesta(hoja, idEncuesta(data.id));
+  if (!fila) return { success: false, error: 'No se encontró esa encuesta.' };
+  hoja.deleteRow(fila);
+  return { success: true, id: idEncuesta(data.id) };
+}
+
+function obtenerEncuesta(id) {
+  var hoja = hojaEncuestas(false);
+  if (!hoja || hoja.getLastRow() < 2) {
+    return { success: false, error: 'Todavía no se ha publicado ninguna encuesta desde el panel.' };
+  }
+
+  var fila = 0;
+  if (id) {
+    fila = filaDeEncuesta(hoja, idEncuesta(id));
+    if (!fila) return { success: false, error: 'No existe la encuesta "' + id + '".' };
+  } else {
+    // Sin parámetro se contesta con la activa; si ninguna lo está, la más reciente
+    var ultima = hoja.getLastRow();
+    for (var f = 2; f <= ultima; f++) {
+      if (String(hoja.getRange(f, 4).getValue()).toUpperCase() === 'SI') { fila = f; break; }
+    }
+    if (!fila) fila = ultima;
+  }
+
+  var datos = hoja.getRange(fila, 1, 1, COLS_ENCUESTA.length).getValues()[0];
+  var contenido = contenidoDeFila(hoja, fila);
+  if (!contenido) return { success: false, error: 'La encuesta está registrada pero sin contenido.' };
+
+  var obj;
+  try {
+    obj = JSON.parse(contenido);
+  } catch (err) {
+    return { success: false, error: 'El contenido guardado está dañado: ' + err };
+  }
+
+  return {
+    success: true,
+    id: String(datos[0]),
+    nombre: String(datos[1]),
+    hoja: String(datos[2]),
+    activa: String(datos[3]).toUpperCase() === 'SI',
+    actualizada: String(datos[4]),
+    html: obj.html || ''
+  };
+}
+
+function listarEncuestas() {
+  var hoja = hojaEncuestas(false);
+  if (!hoja || hoja.getLastRow() < 2) return [];
+  var filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, COLS_ENCUESTA.length).getValues();
+  var salida = [];
+  for (var i = 0; i < filas.length; i++) {
+    if (!String(filas[i][0]).trim()) continue;
+    salida.push({
+      id: String(filas[i][0]),
+      nombre: String(filas[i][1]),
+      hoja: String(filas[i][2]),
+      activa: String(filas[i][3]).toUpperCase() === 'SI',
+      actualizada: String(filas[i][4])
+    });
+  }
+  return salida;
+}
+
+// El identificador que va en el link: sin acentos, espacios ni mayúsculas
+function idEncuesta(texto) {
+  if (!texto) return '';
+  var s = String(texto).trim().toLowerCase();
+  var conAcento = 'áàäâãéèëêíìïîóòöôõúùüûñç';
+  var sinAcento = 'aaaaaeeeeiiiiooooouuuunc';
+  var salida = '';
+  for (var i = 0; i < s.length; i++) {
+    var pos = conAcento.indexOf(s.charAt(i));
+    salida += pos >= 0 ? sinAcento.charAt(pos) : s.charAt(i);
+  }
+  return salida.replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').replace(/-+$/, '').substring(0, 60);
+}
+
+function partir(texto, tamano) {
+  var trozos = [];
+  for (var i = 0; i < texto.length; i += tamano) trozos.push(texto.substring(i, i + tamano));
+  return trozos.length ? trozos : [''];
+}
+
+// ── HOJAS ─────────────────────────────────────────────────────
+function listarHojas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var todas = ss.getSheets();
+  var salida = [];
+  for (var i = 0; i < todas.length; i++) {
+    var n = todas[i].getName();
+    if (n.charAt(0) === '_') continue;
+    if (n.toUpperCase().indexOf('ARCHIVADA') !== -1) continue;
+    if (todas[i].isSheetHidden()) continue;
+    salida.push({ name: n, rows: Math.max(0, todas[i].getLastRow() - 1) });
+  }
+  return salida;
+}
+
+function primeraHojaVisible(ss) {
+  var todas = ss.getSheets();
+  for (var i = 0; i < todas.length; i++) {
+    var n = todas[i].getName();
+    if (n.charAt(0) === '_') continue;
+    if (n.toUpperCase().indexOf('ARCHIVADA') !== -1) continue;
+    if (todas[i].isSheetHidden()) continue;
+    if (todas[i].getLastRow() > 1) return todas[i];
+  }
+  return todas.length ? todas[0] : null;
+}
+
+function archivarHoja(nombre, nuevoNombre) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = nombre ? ss.getSheetByName(String(nombre).trim()) : primeraHojaVisible(ss);
+  if (!hoja) return { success: false, error: 'No se encontró la hoja a archivar.' };
+
+  var marca = Utilities.formatDate(new Date(), ZONA, 'yyyy-MM-dd');
+  hoja.setName(recortar(hoja.getName() + ' · ARCHIVADA · ' + marca));
+
+  var creada = null;
+  if (nuevoNombre) {
+    creada = ss.insertSheet(recortar(String(nuevoNombre).trim()), ss.getSheets().length);
+    creada.activate();
+  }
+  return { success: true, archived: hoja.getName(), created: creada ? creada.getName() : null };
+}
+
+// ── AUXILIARES ────────────────────────────────────────────────
+function leerPayload(e) {
+  if (e && e.parameter && e.parameter.payload) return JSON.parse(e.parameter.payload);
+  if (e && e.postData && e.postData.contents) return JSON.parse(e.postData.contents);
+  throw new Error('La solicitud no trae datos.');
+}
+
+function nombreHoja(data) {
+  var n = String(data._sheet || data._sheetName || '').trim();
+  return n ? recortar(n) : HOJA_POR_DEFECTO;
+}
+
+function recortar(s) {
+  return String(s).substring(0, 95);
+}
+
+// Respaldo por si una encuesta vieja no manda _cols
+function columnasDesdeDatos(data) {
+  var cols = [];
+  for (var k in data) {
+    if (!data.hasOwnProperty(k)) continue;
+    if (k.charAt(0) === '_' || k === 'timestamp') continue;
+    cols.push({ key: k, label: k });
+  }
+  return cols;
+}
+
+function leerEncabezados(hoja) {
+  if (hoja.getLastColumn() === 0) return [];
+  return leerEncabezadosDe(hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]);
+}
+
+function leerEncabezadosDe(fila) {
+  var salida = [];
+  for (var i = 0; i < fila.length; i++) salida.push(limpiar(fila[i]));
+  return salida;
+}
+
+// Quita saltos de línea, comillas sueltas y espacios de más.
+// Es lo que corrige encabezados sucios como "\\nEn las interacciones... '"
+function limpiar(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/\\s+/g, ' ')
+    .replace(/^['"\\s]+/, '')
+    .replace(/['"\\s]+$/, '')
+    .trim();
+}
+
+function esMeta(h) {
+  if (h.charAt(0) === '_') return true;
+  for (var i = 0; i < META.length; i++) {
+    if (META[i].toLowerCase() === h.toLowerCase()) return true;
+  }
+  return false;
+}
+
+function texto(row, indice, nombres) {
+  for (var i = 0; i < nombres.length; i++) {
+    var pos = indice[nombres[i]];
+    if (pos !== undefined && row[pos] !== null && row[pos] !== undefined) {
+      return String(row[pos]).trim();
+    }
+  }
+  return '';
+}
+
+function formatoValor(v) {
+  if (v === null || v === undefined) return '';
+  if (v === true) return 'Sí';
+  if (v === false) return 'No';
+  return v;
+}
+
+function formatoEncabezado(hoja, columnas) {
+  var r = hoja.getRange(1, 1, 1, columnas);
+  r.setBackground('#0B1F3A');
+  r.setFontColor('#FFFFFF');
+  r.setFontWeight('bold');
+  r.setHorizontalAlignment('center');
+  r.setFontSize(10);
+  r.setWrap(true);
+  hoja.setFrozenRows(1);
+}
+
+function responder(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+`;
+}
+
+// Deja el texto de la pregunta listo para usarse como encabezado en Sheets:
+// sin saltos de línea, sin comillas sueltas y sin espacios de más.
+// NO se recorta: el texto completo es el que ve el dashboard y sale en los informes.
+function labelPregunta(texto) {
+  return String(texto || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^['"\s]+/, '')
+    .replace(/['"\s]+$/, '')
+    .trim();
+}
+
+function buildColumns() {
+  const cols = [
+    { key: 'nombre',       label: 'Nombre' },
+    { key: 'cargo',        label: 'Cargo' },
+    { key: 'jefe',         label: 'Jefe Inmediato' },
+    { key: 'area',         label: 'Área' },
+    { key: 'isAnonymous',  label: 'Anónimo' },
+  ];
+  if (S.settings.showPropuestas)    cols.push({ key: 'propuesta',     label: 'Propuestas de mejora' });
+  if (S.settings.showObservaciones) cols.push({ key: 'observaciones',  label: 'Observaciones' });
+  // Preguntas globales — todos las responden, siempre aparecen
+  S.globalQuestions.forEach((q, i) => cols.push({
+    key: `q_global_${i}`,
+    label: labelPregunta(q.text)
+  }));
+  // Preguntas por área — solo se incluyen si el área tiene preguntas personalizadas
+  S.areas.forEach(a => {
+    if (a.customQ && a.customQ.length > 0) {
+      a.customQ.forEach((q, i) => cols.push({
+        key: `q_${a.id}_${i}`,
+        label: `[${a.name}] ${labelPregunta(q.text)}`
+      }));
+    }
+  });
+  return cols;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT / IMPORT / PUBLISH
+// ═══════════════════════════════════════════════════════════════
+function exportConfig() {
+  saveState();
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `climaiq_config_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Configuración exportada', 'success');
+}
+
+function triggerImport() { document.getElementById('importFile').click(); }
+
+function importConfig(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      S = deepMerge(DEFAULT_STATE, parsed);
+      saveState(); applyStateToUI();
+      toast('Configuración importada correctamente', 'success');
+    } catch(err) { toast('Archivo inválido', 'error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function publishSurvey() {
+  saveState();
+
+  // Muestra modal de publicación
+  const modal = document.createElement('div');
+  modal.id = 'publishModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(11,31,58,0.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  modal.innerHTML = `
+    <div style="background:#fff;max-width:480px;width:100%;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,0.25);">
+      <div style="background:#0B1F3A;padding:1.5rem 1.8rem;color:#fff;">
+        <div style="font-size:.65rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#C09648;margin-bottom:.5rem;">Publicar encuesta</div>
+        <div style="font-family:Georgia,serif;font-size:1.3rem;font-weight:600;">${escHtml(S.identity.companyName || 'Encuesta de Clima Laboral')}</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.65);margin-top:.4rem;">La encuesta queda viva al instante en su propio link. No hay que subir nada al repositorio.</div>
+      </div>
+      <div style="padding:1.5rem 1.8rem;">
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8A837C;display:block;margin-bottom:.4rem;">URL del Apps Script (Google Sheets)</label>
+          <input type="url" id="publishUrl" placeholder="https://script.google.com/macros/s/.../exec"
+            style="width:100%;font-family:inherit;font-size:.88rem;border:1px solid #E4DDD4;padding:.65rem .9rem;outline:none;background:#FAF7F2;"
+            value="${S.identity.gasUrl || localStorage.getItem('climaiq_gas_url') || ''}">
+          <div style="font-size:.72rem;color:#8A837C;margin-top:.3rem;">Ahí llegan las respuestas y ahí se guarda la encuesta publicada.</div>
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8A837C;display:block;margin-bottom:.4rem;">Clave de publicación</label>
+          <input type="password" id="publishKey" placeholder="La clave del Apps Script"
+            style="width:100%;font-family:inherit;font-size:.88rem;border:1px solid #E4DDD4;padding:.65rem .9rem;outline:none;background:#FAF7F2;"
+            value="${escHtml(localStorage.getItem('climaiq_clave_pub') || '')}">
+          <div style="font-size:.72rem;color:#8A837C;margin-top:.3rem;">Evita que alguien más pueda cambiarle las preguntas a una encuesta abierta. Se queda guardada en este navegador.</div>
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8A837C;display:block;margin-bottom:.4rem;">Dirección de la página</label>
+          <input type="url" id="publishBase" placeholder="https://usuario.github.io/climaiq-encuesta/"
+            style="width:100%;font-family:inherit;font-size:.88rem;border:1px solid #E4DDD4;padding:.65rem .9rem;outline:none;background:#FAF7F2;"
+            value="${escHtml(localStorage.getItem('climaiq_url_publica') || 'https://cpgermansolis-maker.github.io/climaiq-encuesta/')}">
+          <div style="font-size:.72rem;color:#8A837C;margin-top:.3rem;">El link que se le manda al personal se arma con esta dirección.</div>
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:.5rem;margin-bottom:1.2rem;cursor:pointer;">
+          <input type="checkbox" id="publishActiva" checked style="margin-top:.25rem;">
+          <span style="font-size:.8rem;color:#4A4440;">Que esta sea la encuesta que abre el link corto, sin parámetro. Las anteriores siguen funcionando con su propio link.</span>
+        </label>
+        <div id="publishResult"></div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+          <button id="publishBtn" onclick="doPublishOnline()" style="background:#0B1F3A;color:#fff;border:none;padding:.7rem 1.4rem;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;letter-spacing:.04em;">
+            🚀 Publicar y obtener link
+          </button>
+          <button onclick="doPublish()" style="background:transparent;border:1px solid #C8BFB4;color:#4A4440;padding:.7rem 1rem;font-family:inherit;font-size:.82rem;cursor:pointer;">
+            ⬇ Descargar archivo
+          </button>
+          <button onclick="document.getElementById('publishModal').remove()" style="background:transparent;border:none;color:#8A837C;padding:.7rem .6rem;font-family:inherit;font-size:.82rem;cursor:pointer;">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+// ── PUBLICAR EN LÍNEA ──────────────────────────────────────────
+// La encuesta armada se guarda en el Google Sheets y la página del
+// repositorio la lee al abrirse. Publicar una encuesta nueva ya no
+// obliga a subir un index.html a mano.
+function idEncuesta(texto) {
+  return String(texto || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 60);
+}
+
+// El link que se le manda al personal: la dirección de la página, limpia
+// de parámetros y con diagonal final, más el identificador de la encuesta.
+function linkEncuesta(base, id) {
+  const limpia = String(base || '').trim().replace(/[?#].*$/, '').replace(/\/*$/, '/');
+  return limpia + '?e=' + encodeURIComponent(id);
+}
+
+function copiarLinkEncuesta() {
+  const campo = document.getElementById('publishLink');
+  if (!campo) return;
+  navigator.clipboard.writeText(campo.value)
+    .then(() => toast('✓ Link copiado', 'success'))
+    .catch(() => { campo.select(); document.execCommand('copy'); toast('✓ Link copiado', 'success'); });
+}
+
+async function doPublishOnline() {
+  const gasUrl  = document.getElementById('publishUrl').value.trim();
+  const clave   = document.getElementById('publishKey').value.trim();
+  const base    = document.getElementById('publishBase').value.trim();
+  const activa  = document.getElementById('publishActiva').checked;
+  const salida  = document.getElementById('publishResult');
+  const boton   = document.getElementById('publishBtn');
+  const empresa = (S.identity.companyName || '').trim();
+
+  const aviso = (tipo, texto) => {
+    const color = tipo === 'error' ? '#8B2A1F' : '#1A5C3A';
+    const fondo = tipo === 'error' ? '#FBEEEC' : '#EAF5EF';
+    salida.innerHTML = `<div style="background:${fondo};border-left:3px solid ${color};color:${color};padding:.7rem .9rem;font-size:.82rem;margin-bottom:1rem;">${texto}</div>`;
+  };
+
+  if (!empresa) { aviso('error', 'Primero captura el nombre de la empresa en <strong>Empresa e Identidad</strong>.'); return; }
+  if (!gasUrl)  { aviso('error', 'Falta la URL del Apps Script.'); return; }
+  if (!clave)   { aviso('error', 'Falta la clave de publicación.'); return; }
+
+  const id = idEncuesta(empresa);
+  saveState();
+  localStorage.setItem('climaiq_gas_url', gasUrl);
+  localStorage.setItem('climaiq_clave_pub', clave);
+  if (base) localStorage.setItem('climaiq_url_publica', base);
+  S.identity.gasUrl = gasUrl;
+
+  boton.disabled = true;
+  boton.textContent = 'Publicando…';
+  aviso('ok', 'Enviando la encuesta al servidor…');
+
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({
+      _op: 'saveSurvey',
+      _clave: clave,
+      id: id,
+      nombre: empresa,
+      hoja: (empresa.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, '').trim().substring(0, 90)),
+      activa: activa,
+      html: generateSurveyFile(gasUrl),
+      config: S
+    }));
+
+    const res  = await fetch(gasUrl, { method: 'POST', body: form });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'El servidor no aceptó la publicación.');
+
+    const linkFinal = linkEncuesta(base, id);
+
+    salida.innerHTML = `
+      <div style="background:#EAF5EF;border-left:3px solid #1A5C3A;padding:.9rem 1rem;margin-bottom:1rem;">
+        <div style="font-size:.82rem;color:#1A5C3A;font-weight:600;margin-bottom:.5rem;">✓ Encuesta publicada${activa ? ' y marcada como activa' : ''}</div>
+        <div style="font-size:.72rem;color:#8A837C;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.3rem;">Link para el personal</div>
+        <input readonly id="publishLink" value="${escHtml(linkFinal)}" onclick="this.select()"
+          style="width:100%;font-family:inherit;font-size:.82rem;border:1px solid #C8DFD0;padding:.55rem .7rem;background:#fff;">
+        <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+          <button onclick="copiarLinkEncuesta()"
+            style="background:#1A5C3A;color:#fff;border:none;padding:.5rem 1rem;font-family:inherit;font-size:.78rem;cursor:pointer;">📋 Copiar link</button>
+          <a href="${escHtml(linkFinal)}" target="_blank" rel="noopener"
+            style="background:transparent;border:1px solid #C8BFB4;color:#4A4440;padding:.5rem 1rem;font-family:inherit;font-size:.78rem;cursor:pointer;text-decoration:none;">↗ Abrirla</a>
+        </div>
+        <div style="font-size:.75rem;color:#4A4440;margin-top:.7rem;">Las respuestas llegarán a la pestaña <strong>${escHtml(json.nombre || empresa)}</strong> del Google Sheets.</div>
+      </div>`;
+    toast('✓ Encuesta publicada', 'success');
+  } catch (err) {
+    aviso('error', 'No se pudo publicar: ' + escHtml(err.message) + '<br><span style="font-size:.75rem;">Revisa la URL y la clave. Si prefieres, usa <strong>Descargar archivo</strong> y súbelo al repositorio como antes.</span>');
+  } finally {
+    boton.disabled = false;
+    boton.textContent = '🚀 Publicar y obtener link';
+  }
+}
+
+function doPublish() {
+  const gasUrl = document.getElementById('publishUrl')?.value.trim() || '';
+  if (gasUrl) {
+    localStorage.setItem('climaiq_gas_url', gasUrl);
+    S.identity.gasUrl = gasUrl;
+    saveState();
+    // Also update the field in Empresa e Identidad
+    const gasField = document.getElementById('gasUrl');
+    if (gasField) gasField.value = gasUrl;
+  }
+
+  const html = generateSurveyFile(gasUrl);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'encuesta_clima_laboral.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('publishModal')?.remove();
+  toast('✓ Encuesta generada y descargada correctamente', 'success');
+}
+
+function generateSurveyFile(gasUrl) {
+  // Embed the full config directly into the survey HTML
+  const identity = S.identity;
+  const logoSrc = identity.logoData || identity.logoUrl || '';
+  const companyName = identity.companyName || 'Clima Laboral';
+  const dept = identity.companyDept || '';
+  const welcome = identity.welcomeMsg || 'Tu opinión es confidencial y nos ayuda a mejorar el ambiente de trabajo.';
+  const cp = identity.colorPrimary || '#0B1F3A';
+  const ca = identity.colorAccent || '#1D6348';
+  const cb = identity.colorBg || '#FAF7F2';
+  const sc = S.settings.scale || ['Nunca','Pocas veces','Frecuentemente','Siempre'];
+  const emojis = ['😕','😐','🙂','😊'];
+
+  function buildQ(q, i, areaName) {
+    const isCustom = !!areaName;
+    const name = isCustom ? 'q_' + areaName.replace(/\s/g,'_') + '_' + i : 'q_global_' + i;
+    return `<div class="q-item" id="qi_${name}">
+      <div class="q-text-row">
+        <div class="q-number">${i+1}</div>
+        <div class="q-text">${escHtml(q.text)}${isCustom ? `<span class="q-area-tag">📂 ${escHtml(areaName)}</span>` : ''}</div>
+      </div>
+      <div class="rating-row">${[1,2,3,4].map((v,vi) => `
+        <label class="rating-opt">
+          <input type="radio" name="${name}" value="${v}" onchange="onAnswer('${name}')">
+          <div class="rating-face"><div class="r-value">${v}</div><div class="r-label">${escHtml(sc[vi])}</div></div>
+        </label>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  const globalQsHTML = S.globalQuestions.map((q, i) => buildQ(q, i, null)).join('');
+  const areaOptionsHTML = S.areas.map(a => `<option value="${escHtml(a.id)}">${escHtml(a.name)}</option>`).join('');
+
+  // Area questions map for JS
+  const areasData = JSON.stringify(S.areas.map(a => ({
+    id: a.id,
+    name: a.name,
+    customQ: a.customQ
+  })));
+
+  const scaleJSON = JSON.stringify(sc);
+  const showAnon = S.settings.allowAnonymous;
+
+  // _sheet: nombre de empresa para crear/buscar la hoja en Sheets.
+  // Google permite hasta 100 caracteres por pestaña; 90 deja margen.
+  const sheetName = (identity.companyName || 'Encuesta').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'').trim().substring(0,90);
+
+  // _cols: columnas completas con texto real de preguntas
+  const cols = buildColumns();
+  const colsJSON = JSON.stringify(cols);
+  const showProp = S.settings.showPropuestas;
+  const showObs  = S.settings.showObservaciones;
+  const showProg = S.settings.showProgress;
+  const showScale = S.settings.showScale;
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>${escHtml(companyName)} — Encuesta de Clima Laboral</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:${cp};--gold:#C09648;--gold-light:#D4AF6A;--cream:${cb};--white:#fff;--ink:#1A1614;--ink2:#4A4440;--ink3:#8A837C;--border:#E4DDD4;--border-dark:#C8BFB4;--green:${ca};--green-pale:rgba(29,99,72,.07);--red:#8B2A1F;--shadow-sm:0 1px 6px rgba(11,31,58,.07);--shadow:0 4px 20px rgba(11,31,58,.10);--shadow-lg:0 12px 48px rgba(11,31,58,.14);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;scroll-behavior:smooth;}
+body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;line-height:1.6;}
+.page-wrap{display:flex;flex-direction:column;min-height:100vh;}
+.top-strip{height:4px;background:linear-gradient(90deg,var(--navy),var(--gold),var(--navy));}
+/* HEADER */
+.survey-header{background:var(--navy);color:#fff;padding:2.5rem 1.5rem 3rem;position:relative;overflow:hidden;}
+.survey-header::before{content:'';position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;border:1px solid rgba(192,150,72,.18);pointer-events:none;}
+.header-inner{max-width:660px;margin:0 auto;position:relative;z-index:1;}
+.logo-area{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:1.4rem;border-bottom:1px solid rgba(192,150,72,.22);}
+.logo-img{height:42px;object-fit:contain;filter:brightness(0) invert(1);opacity:.9;}
+.logo-company{font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:600;letter-spacing:.04em;}
+.logo-dept{font-size:.68rem;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-top:.15rem;}
+.header-eyebrow{font-size:.63rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.85rem;display:flex;align-items:center;gap:.6rem;}
+.header-eyebrow::before{content:'';display:block;width:22px;height:1px;background:var(--gold);}
+.header-title{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,5vw,2.6rem);font-weight:300;font-style:italic;line-height:1.15;margin-bottom:1rem;color:#fff;}
+.header-title strong{font-weight:600;font-style:normal;color:var(--gold-light);}
+.header-desc{font-size:.875rem;font-weight:300;color:rgba(255,255,255,.72);line-height:1.7;max-width:480px;margin-bottom:1.8rem;}
+.header-badges{display:flex;flex-wrap:wrap;gap:.5rem;}
+.hbadge{display:inline-flex;align-items:center;gap:.4rem;font-size:.7rem;font-weight:500;padding:.38rem .85rem;border:1px solid rgba(192,150,72,.32);color:rgba(255,255,255,.78);background:rgba(192,150,72,.07);}
+/* PROGRESS */
+.progress-section{background:#152D4E;padding:.75rem 1.5rem;position:sticky;top:0;z-index:150;box-shadow:0 2px 16px rgba(11,31,58,.35);}
+.progress-inner{max-width:660px;margin:0 auto;display:flex;align-items:center;gap:1rem;}
+.progress-track{flex:1;height:3px;background:rgba(255,255,255,.12);overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));width:0%;transition:width .5s ease;}
+.progress-pct{font-size:.7rem;font-weight:600;color:var(--gold-light);min-width:30px;text-align:right;}
+.progress-steps{font-size:.65rem;color:rgba(255,255,255,.4);}
+/* BODY */
+.survey-body{flex:1;padding:2rem 1.5rem 4rem;}
+.survey-inner{max-width:660px;margin:0 auto;display:flex;flex-direction:column;gap:1.4rem;}
+/* SECTIONS */
+.section{background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden;animation:fadeUp .4s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.section:nth-child(1){animation-delay:.05s}.section:nth-child(2){animation-delay:.1s}.section:nth-child(3){animation-delay:.15s}.section:nth-child(4){animation-delay:.2s}
+.section-head{display:flex;align-items:center;gap:.85rem;padding:1rem 1.4rem;border-bottom:1px solid var(--border);background:linear-gradient(to right,rgba(11,31,58,.03),transparent);}
+.section-num{width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.02rem;font-weight:600;color:var(--navy);flex:1;}
+.section-tag{font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.section-body{padding:1.4rem;}
+/* ANON */
+.anon-toggle{display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;border:1.5px solid var(--border);background:var(--cream);cursor:pointer;transition:all .2s;margin-bottom:1.3rem;position:relative;overflow:hidden;}
+.anon-toggle::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border-dark);transition:background .2s;}
+.anon-toggle.active{border-color:var(--navy);background:rgba(11,31,58,.03);}
+.anon-toggle.active::before{background:var(--navy);}
+.anon-icon-wrap{width:38px;height:38px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0;transition:background .2s;}
+.anon-toggle.active .anon-icon-wrap{background:var(--navy);}
+.anon-text{flex:1;}.anon-text h4{font-size:.86rem;font-weight:600;margin-bottom:.18rem;}.anon-text p{font-size:.74rem;color:var(--ink3);font-weight:300;}
+.anon-switch{width:42px;height:22px;border-radius:22px;background:var(--border-dark);position:relative;flex-shrink:0;transition:background .22s;}
+.anon-switch::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .22s;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+.anon-toggle.active .anon-switch{background:var(--navy);}
+.anon-toggle.active .anon-switch::after{transform:translateX(20px);}
+/* FORM FIELDS */
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:.95rem;}
+.field{display:flex;flex-direction:column;gap:.38rem;}
+.field.span2{grid-column:1/-1;}
+.field-label{font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.req{color:var(--red);margin-left:2px;}
+input[type=text],select,textarea{font-family:'Jost',sans-serif;font-size:16px;color:var(--ink);background:var(--cream);border:1px solid var(--border);padding:.7rem .9rem;outline:none;width:100%;transition:all .18s;-webkit-appearance:none;-moz-appearance:none;appearance:none;border-radius:0;}
+input:focus,select:focus,textarea:focus{border-color:var(--navy);background:#fff;box-shadow:0 0 0 3px rgba(11,31,58,.07);}
+input:disabled{opacity:.45;cursor:not-allowed;background:var(--border);}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A837C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .9rem center;padding-right:2.4rem;cursor:pointer;height:48px;}
+textarea{resize:vertical;min-height:82px;}
+/* SCALE */
+.scale-legend{background:linear-gradient(135deg,var(--navy),#1E3D62);padding:1rem 1.4rem;display:flex;align-items:center;flex-wrap:wrap;gap:.7rem;}
+.scale-legend-label{font-size:.63rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+.scale-items{display:flex;gap:.5rem;flex-wrap:wrap;flex:1;justify-content:flex-end;}
+.scale-item{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:rgba(255,255,255,.8);}
+.scale-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:700;color:#fff;flex-shrink:0;}
+/* QUESTIONS */
+.q-item{border-bottom:1px solid var(--border);transition:background .15s;}
+.q-item:last-child{border-bottom:none;}
+.q-item.answered{background:rgba(29,99,72,.025);}
+.q-text-row{padding:1.1rem 1.4rem .7rem;display:flex;align-items:flex-start;gap:.85rem;}
+.q-number{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:600;color:var(--gold);min-width:22px;line-height:1.4;flex-shrink:0;}
+.q-text{font-size:.88rem;line-height:1.52;color:var(--ink);flex:1;}
+.q-area-tag{display:inline-flex;align-items:center;gap:.2rem;font-size:.58rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:.15rem .45rem;background:rgba(29,99,72,.1);color:var(--green);border:1px solid rgba(29,99,72,.18);margin-left:.4rem;vertical-align:middle;white-space:nowrap;}
+.rating-row{padding:.6rem 1.4rem 1.1rem;display:flex;gap:.45rem;}
+.rating-opt{flex:1;}
+.rating-opt input[type=radio]{display:none;}
+.rating-face{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.28rem;padding:.65rem .2rem;border:1.5px solid var(--border);background:var(--cream);cursor:pointer;transition:all .15s;min-height:68px;position:relative;overflow:hidden;}
+.rating-face::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:transparent;transition:background .15s;}
+.rating-face:hover{border-color:var(--navy);background:#fff;transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+.rating-opt input[value="1"]:checked+.rating-face{border-color:#8B2A1F;background:#FBF0EF;}
+.rating-opt input[value="1"]:checked+.rating-face::before{background:#8B2A1F;}
+.rating-opt input[value="2"]:checked+.rating-face{border-color:#915A0E;background:#FDF5E8;}
+.rating-opt input[value="2"]:checked+.rating-face::before{background:#915A0E;}
+.rating-opt input[value="3"]:checked+.rating-face{border-color:#1A4F7A;background:#EBF2F8;}
+.rating-opt input[value="3"]:checked+.rating-face::before{background:#1A4F7A;}
+.rating-opt input[value="4"]:checked+.rating-face{border-color:var(--green);background:var(--green-pale);}
+.rating-opt input[value="4"]:checked+.rating-face::before{background:var(--green);}
+.r-value{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--ink2);line-height:1;}
+.rating-opt input[value="1"]:checked+.rating-face .r-value{color:#8B2A1F;}
+.rating-opt input[value="2"]:checked+.rating-face .r-value{color:#915A0E;}
+.rating-opt input[value="3"]:checked+.rating-face .r-value{color:#1A4F7A;}
+.rating-opt input[value="4"]:checked+.rating-face .r-value{color:var(--green);}
+.r-label{font-size:.58rem;font-weight:500;color:var(--ink3);text-align:center;line-height:1.15;}
+/* CONFIDENTIALITY */
+.conf-box{border:1px solid rgba(11,31,58,.14);background:linear-gradient(135deg,rgba(11,31,58,.03),rgba(192,150,72,.04));padding:1.1rem 1.4rem;display:flex;gap:.9rem;align-items:flex-start;}
+.conf-icon{font-size:1.2rem;flex-shrink:0;margin-top:.1rem;}
+.conf-text h4{font-family:'Cormorant Garamond',serif;font-size:.95rem;font-weight:600;color:var(--navy);margin-bottom:.25rem;}
+.conf-text p{font-size:.77rem;color:var(--ink3);font-weight:300;line-height:1.58;}
+/* SUBMIT */
+.submit-section{display:flex;flex-direction:column;align-items:center;gap:.9rem;}
+.btn-submit{background:var(--navy);color:#fff;border:none;padding:1rem 3rem;font-family:'Jost',sans-serif;font-size:.87rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .18s;min-width:220px;position:relative;overflow:hidden;}
+.btn-submit::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--gold);transform:scaleX(0);transition:transform .3s;}
+.btn-submit:hover{background:#152D4E;transform:translateY(-1px);box-shadow:var(--shadow);}
+.btn-submit:hover::before{transform:scaleX(1);}
+.submit-legal{font-size:.7rem;color:var(--ink3);text-align:center;max-width:380px;line-height:1.6;font-weight:300;}
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(10,20,36,.75);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;gap:1.4rem;}
+.loading-overlay.show{display:flex;}
+.loading-ring{width:50px;height:50px;border:2px solid rgba(192,150,72,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:.8rem;font-weight:500;color:rgba(255,255,255,.75);letter-spacing:.07em;}
+/* SUCCESS */
+.success-screen{display:none;flex:1;align-items:center;justify-content:center;padding:2.5rem 1.5rem;}
+.success-card{background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-lg);max-width:540px;width:100%;overflow:hidden;animation:successIn .6s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes successIn{from{opacity:0;transform:scale(.94) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.success-header{background:linear-gradient(135deg,var(--navy),#1E3D62);padding:2.2rem 2.2rem 1.8rem;text-align:center;position:relative;overflow:hidden;}
+.success-checkmark{width:68px;height:68px;border-radius:50%;border:2px solid rgba(192,150,72,.45);background:rgba(192,150,72,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;animation:checkPop .5s .3s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes checkPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.success-checkmark svg{width:30px;height:30px;stroke:var(--gold-light);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:50;stroke-dashoffset:50;animation:drawCheck .5s .6s ease forwards;}
+@keyframes drawCheck{to{stroke-dashoffset:0}}
+.success-eyebrow{font-size:.6rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.9rem;}
+.success-header h2{font-family:'Cormorant Garamond',serif;font-size:1.7rem;font-weight:300;font-style:italic;color:#fff;margin-bottom:.2rem;}
+.success-header h2 strong{font-weight:600;font-style:normal;color:var(--gold-light);}
+.success-body{padding:1.8rem 2rem;}
+.success-message{font-size:.88rem;color:var(--ink2);line-height:1.75;text-align:center;margin-bottom:1.4rem;font-weight:300;}
+.success-message strong{color:var(--ink);font-weight:600;}
+.commitments{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1.6rem;}
+.commitment-item{display:flex;align-items:flex-start;gap:.85rem;padding:.9rem 1rem;background:var(--cream);border:1px solid var(--border);border-left:3px solid var(--navy);}
+.commit-icon{font-size:.95rem;flex-shrink:0;margin-top:.1rem;}
+.commit-text h4{font-size:.8rem;font-weight:600;color:var(--navy);margin-bottom:.18rem;}
+.commit-text p{font-size:.74rem;color:var(--ink3);font-weight:300;line-height:1.5;}
+.success-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:1.3rem 0;}
+.success-footer-text{text-align:center;font-size:.76rem;color:var(--ink3);font-weight:300;line-height:1.65;font-style:italic;}
+.success-footer-text strong{color:var(--ink2);font-style:normal;font-weight:500;}
+.success-seal{text-align:center;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.seal-line{flex:1;height:1px;background:var(--border);max-width:55px;}
+/* FOOTER */
+.survey-footer{background:var(--navy);padding:1rem 1.5rem;text-align:center;}
+.footer-inner{max-width:660px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;}
+.footer-item{font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.33);display:flex;align-items:center;gap:.3rem;}
+.footer-dot{width:3px;height:3px;border-radius:50%;background:rgba(192,150,72,.4);}
+/* RESPONSIVE */
+@media(max-width:580px){
+  .survey-header{padding:1.8rem 1.1rem 2.2rem;}
+  .section-body{padding:1rem;}
+  .field-grid{grid-template-columns:1fr;}
+  .field.span2{grid-column:1;}
+  .rating-row{gap:.28rem;padding:.55rem .9rem 1rem;}
+  .rating-face{min-height:54px;padding:.45rem .15rem;}
+  .r-label{display:none;}
+  .r-value{font-size:1.1rem;}
+  .q-text-row{padding:.95rem .9rem .55rem;}
+  .q-text{font-size:.84rem;}
+  .survey-body{padding:1.5rem 1rem 3rem;}
+  .scale-legend{flex-direction:column;align-items:flex-start;gap:.5rem;padding:.9rem 1.1rem;}
+  .scale-items{justify-content:flex-start;}
+  .progress-section{padding:.6rem 1rem;}
+  .success-body{padding:1.4rem;}
+  .success-header{padding:1.8rem 1.2rem 1.4rem;}
+  .success-header h2{font-size:1.4rem;}
+}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-ring"></div>
+  <div class="loading-text">Enviando tu respuesta…</div>
+</div>
+<div class="page-wrap">
+  <div class="top-strip"></div>
+  <header class="survey-header">
+    <div class="header-inner">
+      ${logoSrc ? `<div class="logo-area"><img class="logo-img" src="${logoSrc}" alt="Logo"><div class="logo-text"><div class="logo-company">${escHtml(companyName)}</div>${dept ? `<div class="logo-dept">${escHtml(dept)}</div>` : ''}</div></div>` : `<div class="logo-area"><div class="logo-text"><div class="logo-company">${escHtml(companyName)}</div>${dept ? `<div class="logo-dept">${escHtml(dept)}</div>` : ''}</div></div>`}
+      <div class="header-eyebrow">Evaluación Interna · Confidencial</div>
+      <h1 class="header-title">Encuesta de<br><strong>Clima Laboral</strong></h1>
+      <p class="header-desc">${escHtml(welcome)}</p>
+      <div class="header-badges">
+        <div class="hbadge">🔒 100% Confidencial</div>
+        <div class="hbadge">⏱ 5 minutos aprox.</div>
+        <div class="hbadge">📊 Resultados anónimos</div>
+      </div>
+    </div>
+  </header>
+
+  ${showProg ? `<div class="progress-section" id="progressSection">
+    <div class="progress-inner">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-pct" id="progressPct">0%</div>
+      <div class="progress-steps" id="progressSteps"></div>
+    </div>
+  </div>` : ''}
+
+  <div class="survey-body" id="surveyBodyForm">
+    <div class="survey-inner">
+      <form id="surveyForm" novalidate>
+
+        <div class="section">
+          <div class="section-head">
+            <div class="section-num">01</div>
+            <div class="section-title">Información del Colaborador</div>
+            <div class="section-tag">Paso 1</div>
+          </div>
+          <div class="section-body">
+            ${showAnon ? `<div class="anon-toggle" id="anonToggle" onclick="toggleAnon()">
+              <div class="anon-icon-wrap" id="anonIconWrap">🔒</div>
+              <div class="anon-text"><h4 id="anonTitle">Prefiero responder de forma anónima</h4><p id="anonDesc">Al activar esta opción, tu nombre no quedará registrado</p></div>
+              <div class="anon-switch" id="anonSwitch"></div>
+            </div>` : ''}
+            <div class="field-grid">
+              <div class="field"><label class="field-label">Nombre completo <span class="req" id="nameReq">*</span></label><input type="text" name="nombre" id="nombreInput" placeholder="Tu nombre completo" autocomplete="name"></div>
+              <div class="field"><label class="field-label">Cargo / Puesto <span class="req">*</span></label><input type="text" name="cargo" placeholder="Tu cargo actual" required></div>
+              <div class="field"><label class="field-label">Jefe Inmediato <span class="req">*</span></label><input type="text" name="jefe" placeholder="Nombre de tu jefe directo" required></div>
+              <div class="field"><label class="field-label">Área de trabajo <span class="req">*</span></label>
+                <select name="area" id="areaSelect" required onchange="onAreaChange()">
+                  <option value="">Selecciona tu área</option>
+                  ${areaOptionsHTML}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${showScale ? `<div class="scale-legend">
+          <div class="scale-legend-label">Escala:</div>
+          <div class="scale-items">
+            <div class="scale-item"><div class="scale-dot" style="background:#8B2A1F">1</div>${escHtml(sc[0])}</div>
+            <div class="scale-item"><div class="scale-dot" style="background:#915A0E">2</div>${escHtml(sc[1])}</div>
+            <div class="scale-item"><div class="scale-dot" style="background:#1A4F7A">3</div>${escHtml(sc[2])}</div>
+            <div class="scale-item"><div class="scale-dot" style="background:var(--green)">4</div>${escHtml(sc[3])}</div>
+          </div>
+        </div>` : ''}
+
+        <div class="section">
+          <div class="section-head">
+            <div class="section-num">02</div>
+            <div class="section-title">Evaluación del Clima Laboral</div>
+            <div class="section-tag">Preguntas generales</div>
+          </div>
+          <div style="padding:0;">${globalQsHTML}</div>
+        </div>
+
+        <div class="section" id="areaSection" style="display:none;">
+          <div class="section-head">
+            <div class="section-num">03</div>
+            <div class="section-title" id="areaSectionTitle">Preguntas del Área</div>
+            <div class="section-tag">Específicas</div>
+          </div>
+          <div style="padding:0;" id="areaQsContainer"></div>
+        </div>
+
+        ${showProp || showObs ? `<div class="section" id="commentsSection">
+          <div class="section-head">
+            <div class="section-num" id="commentsSectionNum">03</div>
+            <div class="section-title">Propuestas y Comentarios</div>
+            <div class="section-tag">Opcional</div>
+          </div>
+          <div class="section-body">
+            ${showProp ? `<div class="field" style="margin-bottom:.9rem;"><label class="field-label">¿Qué propones para mejorar el clima laboral?</label><textarea name="propuesta" placeholder="Comparte tus ideas y sugerencias…" rows="3"></textarea></div>` : ''}
+            ${showObs  ? `<div class="field"><label class="field-label">Observaciones adicionales</label><textarea name="observaciones" placeholder="Cualquier comentario adicional…" rows="2"></textarea></div>` : ''}
+          </div>
+        </div>` : ''}
+
+        <div class="conf-box">
+          <div class="conf-icon">🛡️</div>
+          <div class="conf-text">
+            <h4>Compromiso de Confidencialidad</h4>
+            <p>Tus respuestas son estrictamente confidenciales. Los resultados se analizarán de forma agregada y nunca se identificará a ningún colaborador de manera individual.</p>
+          </div>
+        </div>
+
+        <div class="submit-section">
+          <button type="submit" class="btn-submit" id="submitBtn">Enviar mi evaluación</button>
+          <p class="submit-legal">Al enviar confirmas que tus respuestas son verídicas y has leído nuestro compromiso de confidencialidad.</p>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <div class="success-screen" id="successScreen">
+    <div class="success-card">
+      <div class="success-header">
+        <div class="success-eyebrow">Evaluación completada</div>
+        <div class="success-checkmark"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2>Gracias por tu <strong>participación</strong></h2>
+      </div>
+      <div class="success-body">
+        <p class="success-message">Tu evaluación ha sido registrada exitosamente. Tu voz contribuye directamente a fortalecer el ambiente de trabajo. <strong>Cada respuesta cuenta.</strong></p>
+        <div class="commitments">
+          <div class="commitment-item"><div class="commit-icon">🔒</div><div class="commit-text"><h4>Total confidencialidad</h4><p>Tus respuestas son estrictamente confidenciales. En ningún momento se revelará tu identidad de forma individual.</p></div></div>
+          <div class="commitment-item"><div class="commit-icon">📊</div><div class="commit-text"><h4>Uso responsable</h4><p>Los datos se analizarán de forma agregada y se usarán exclusivamente para mejorar el ambiente laboral.</p></div></div>
+          <div class="commitment-item"><div class="commit-icon">🤝</div><div class="commit-text"><h4>Compromiso de acción</h4><p>Nos comprometemos a comunicar los planes de mejora derivados de esta evaluación oportunamente.</p></div></div>
+        </div>
+        <div class="success-divider"></div>
+        <p class="success-footer-text">Si tienes dudas sobre el manejo de esta información, puedes contactar al área de <strong>Recursos Humanos</strong> a través de los canales habituales.</p>
+        <div class="success-seal"><div class="seal-line"></div>🛡 Información manejada con responsabilidad y ética<div class="seal-line"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="survey-footer">
+    <div class="footer-inner">
+      <div class="footer-item">🔒 Encuesta Confidencial</div>
+      <div class="footer-dot"></div>
+      <div class="footer-item">${escHtml(companyName)}</div>
+      <div class="footer-dot"></div>
+      <div class="footer-item">Datos protegidos</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+// Todo el script de la encuesta vive dentro de esta función, y no es adorno.
+// El cargador del repositorio escribe esta página con document.write, que
+// borra el documento pero NO borra las variables de JavaScript. Si aquí se
+// declararan APPS_SCRIPT_URL o escHtml en el ámbito global, chocarían con las
+// del cargador y el navegador tumbaría ESTE script completo: el formulario se
+// seguiría viendo, porque es HTML estático, pero el botón Enviar se quedaría
+// sin manejador y la persona contestaría sin que se guarde nada ni se le
+// avise. Así se perdieron respuestas de Arrendadora hasta el 26/08/2026.
+(function () {
+// ── CONFIGURACIÓN INTEGRADA (generada automáticamente por el Panel Admin) ──
+const APPS_SCRIPT_URL = '${gasUrl}';
+const SHEET_NAME = '${sheetName}';
+const SURVEY_COLS = ${colsJSON};
+const AREAS = ${areasData};
+const GLOBAL_QS_COUNT = ${S.globalQuestions.length};
+const SCALE = ${scaleJSON};
+const SHOW_ANON = ${showAnon};
+
+let isAnon = false;
+let currentAreaId = null;
+
+// ── ANONIMATO ──────────────────────────────────────────
+function toggleAnon() {
+  if (!SHOW_ANON) return;
+  isAnon = !isAnon;
+  const toggle = document.getElementById('anonToggle');
+  const ni = document.getElementById('nombreInput');
+  toggle.classList.toggle('active', isAnon);
+  document.getElementById('anonTitle').textContent = isAnon ? 'Respondiendo de forma anónima' : 'Prefiero responder de forma anónima';
+  document.getElementById('anonDesc').textContent = isAnon ? 'Tu nombre no quedará registrado' : 'Al activar esta opción, tu nombre no quedará registrado';
+  document.getElementById('anonIconWrap').textContent = isAnon ? '🔒' : '👤';
+  document.getElementById('nameReq').style.display = isAnon ? 'none' : 'inline';
+  ni.disabled = isAnon; ni.value = '';
+  ni.placeholder = isAnon ? 'Anónimo' : 'Tu nombre completo';
+  trackProgress();
+}
+
+// ── ÁREA ───────────────────────────────────────────────
+function onAreaChange() {
+  const areaId = document.getElementById('areaSelect').value;
+  currentAreaId = areaId;
+  const area = AREAS.find(a => a.id === areaId);
+  const sec = document.getElementById('areaSection');
+  const commNum = document.getElementById('commentsSectionNum');
+  if (area && area.customQ && area.customQ.length > 0) {
+    sec.style.display = 'block';
+    document.getElementById('areaSectionTitle').textContent = 'Evaluación · ' + area.name;
+    if (commNum) commNum.textContent = '04';
+    renderAreaQs(area);
+  } else {
+    sec.style.display = 'none';
+    if (commNum) commNum.textContent = '03';
+    document.getElementById('areaQsContainer').innerHTML = '';
+  }
+  trackProgress();
+}
+
+function renderAreaQs(area) {
+  const offset = GLOBAL_QS_COUNT;
+  document.getElementById('areaQsContainer').innerHTML = area.customQ.map((q, i) => {
+    const name = 'q_' + area.id + '_' + i;
+    return \`<div class="q-item" id="qi_\${name}">
+      <div class="q-text-row">
+        <div class="q-number">\${offset + i + 1}</div>
+        <div class="q-text">\${escHtml(q.text)}<span class="q-area-tag">📂 \${escHtml(area.name)}</span></div>
+      </div>
+      <div class="rating-row">\${[1,2,3,4].map((v,vi) => \`
+        <label class="rating-opt">
+          <input type="radio" name="\${name}" value="\${v}" onchange="onAnswer('\${name}')">
+          <div class="rating-face"><div class="r-value">\${v}</div><div class="r-label">\${SCALE[vi]}</div></div>
+        </label>\`).join('')}
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+// ── RESPUESTA ──────────────────────────────────────────
+function onAnswer(name) {
+  const el = document.getElementById('qi_' + name);
+  if (el) el.classList.add('answered');
+  trackProgress();
+}
+
+// ── PROGRESO ───────────────────────────────────────────
+function trackProgress() {
+  let total = 0, filled = 0;
+  const fields = ['cargo','jefe','area'];
+  if (!isAnon) fields.push('nombre');
+  fields.forEach(f => {
+    const el = document.querySelector('[name="' + f + '"]');
+    if (el) { total++; if (el.value.trim()) filled++; }
+  });
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    total++;
+    if (document.querySelector('[name="q_global_' + i + '"]:checked')) filled++;
+  }
+  if (currentAreaId) {
+    const area = AREAS.find(a => a.id === currentAreaId);
+    if (area) area.customQ.forEach((q, i) => {
+      if (q.required) { total++; if (document.querySelector('[name="q_' + currentAreaId + '_' + i + '"]:checked')) filled++; }
+    });
+  }
+  const pct = total > 0 ? Math.round(filled / total * 100) : 0;
+  const pf = document.getElementById('progressFill');
+  const pp = document.getElementById('progressPct');
+  const ps = document.getElementById('progressSteps');
+  if (pf) pf.style.width = pct + '%';
+  if (pp) pp.textContent = pct + '%';
+  if (ps) ps.textContent = filled + ' / ' + total;
+}
+
+document.getElementById('surveyForm').addEventListener('input', trackProgress);
+document.getElementById('surveyForm').addEventListener('change', trackProgress);
+
+// ── ENVIAR ─────────────────────────────────────────────
+document.getElementById('surveyForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const cargo  = document.querySelector('[name="cargo"]').value.trim();
+  const jefe   = document.querySelector('[name="jefe"]').value.trim();
+  const area   = document.querySelector('[name="area"]').value;
+  const nombre = isAnon ? 'Anónimo' : (document.querySelector('[name="nombre"]').value.trim());
+  if (!cargo || !jefe || !area) { alert('Por favor completa los campos obligatorios: Cargo, Jefe Inmediato y Área.'); return; }
+  if (!isAnon && !nombre) { alert('Por favor escribe tu nombre, o activa la opción de respuesta anónima.'); return; }
+  let missingQ = false;
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    if (!document.querySelector('[name="q_global_' + i + '"]:checked')) { missingQ = true; break; }
+  }
+  if (missingQ) { alert('Por favor responde todas las preguntas de evaluación general.'); return; }
+
+  const areaObj = AREAS.find(a => a.id === area);
+  const payload = {
+    _sheet: SHEET_NAME,
+    _cols:  SURVEY_COLS,
+    nombre, cargo, jefe,
+    area: areaObj ? areaObj.name : area,
+    isAnonymous: isAnon,
+    propuesta:     (document.querySelector('[name="propuesta"]')?.value     || '').trim(),
+    observaciones: (document.querySelector('[name="observaciones"]')?.value || '').trim(),
+    timestamp: new Date().toISOString(),
+  };
+  for (let i = 0; i < GLOBAL_QS_COUNT; i++) {
+    const el = document.querySelector('[name="q_global_' + i + '"]:checked');
+    payload['q_global_' + i] = el ? parseInt(el.value) : null;
+  }
+  if (areaObj) areaObj.customQ.forEach((q, i) => {
+    const el = document.querySelector('[name="q_' + areaObj.id + '_' + i + '"]:checked');
+    payload['q_' + areaObj.id + '_' + i] = el ? parseInt(el.value) : null;
+  });
+
+  document.getElementById('loadingOverlay').classList.add('show');
+  document.getElementById('submitBtn').disabled = true;
+
+  let synced = false;
+  if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.trim()) {
+    // Google Apps Script lee los datos desde e.parameter.payload
+    const form = new FormData();
+    form.append('payload', JSON.stringify(payload));
+
+    // Lo único que prueba el guardado es encontrar la respuesta en la hoja.
+    // Que el script conteste no prueba nada: el envío a ciegas no devuelve
+    // resultado, y así se perdieron respuestas con la pantalla de gracias
+    // puesta. Se compara por lo que escribió la persona.
+    const yaQuedoGuardada = async function() {
+      try {
+        const url = APPS_SCRIPT_URL + '?action=getData&sheet=' +
+                    encodeURIComponent(SHEET_NAME) + '&_=' + Date.now();
+        const r = await fetch(url, { cache: 'no-store' });
+        const j = await r.json();
+        if (!j || !j.success || !Array.isArray(j.data)) return false;
+        const igual = function(a, b) { return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim(); };
+        return j.data.some(function(f) {
+          return igual(f.nombre, payload.nombre) && igual(f.cargo, payload.cargo) &&
+                 igual(f.jefe, payload.jefe)     && igual(f.area, payload.area) &&
+                 igual(f.propuesta, payload.propuesta) &&
+                 igual(f.observaciones, payload.observaciones);
+        });
+      } catch(e) { return false; }
+    };
+
+    try {
+      // Camino normal: se lee la respuesta del servidor y ella confirma.
+      const res  = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form });
+      const json = await res.json();
+      synced = !!(json && json.success);
+    } catch(err) {
+      // Hay navegadores, sobre todo los que viven dentro de otra app como
+      // WhatsApp, que no dejan leer la respuesta del envío. El envío pudo
+      // haber entrado igual, así que primero se revisa la hoja: si ya está,
+      // no se reenvía y no se duplica.
+      synced = await yaQuedoGuardada();
+      if (!synced) {
+        try { await fetch(APPS_SCRIPT_URL, { method: 'POST', body: form, mode: 'no-cors' }); } catch(e2) {}
+        for (let intento = 0; intento < 4 && !synced; intento++) {
+          await new Promise(r => setTimeout(r, 1200));
+          synced = await yaQuedoGuardada();
+        }
+      }
+    }
+  }
+
+  await new Promise(r => setTimeout(r, 800));
+  document.getElementById('loadingOverlay').classList.remove('show');
+
+  // Sin guardado confirmado no hay pantalla de gracias: se le dice a la
+  // persona que sus respuestas no se guardaron, con el botón habilitado
+  // para reintentar sin volver a llenar el cuestionario.
+  if (!synced) {
+    document.getElementById('submitBtn').disabled = false;
+    alert('No se pudo guardar tu respuesta.\n\n' +
+          'Tus respuestas siguen en pantalla. Revisa tu conexión y vuelve a presionar Enviar. ' +
+          'Si el problema sigue, avisa a Recursos Humanos para que no se pierdan.');
+    return;
+  }
+
+  document.getElementById('surveyBodyForm').style.display = 'none';
+  const ps = document.getElementById('progressSection');
+  if (ps) ps.style.display = 'none';
+  document.getElementById('successScreen').style.display = 'flex';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+trackProgress();
+
+// El HTML de la encuesta llama a estas tres desde atributos (onchange,
+// onclick), así que tienen que seguir siendo alcanzables desde fuera de la
+// función. Si se agrega otro handler en línea, hay que exponerlo aquí también
+// o dejará de funcionar sin avisar.
+window.toggleAnon   = toggleAnon;
+window.onAreaChange = onAreaChange;
+window.onAnswer     = onAnswer;
+})();
+<\/script>
+</body>
+</html>`;
+}
+
+function copyScript() {
+  navigator.clipboard.writeText(generateScript())
+    .then(() => toast('Script copiado al portapapeles', 'success'))
+    .catch(() => toast('No se pudo copiar', 'error'));
+}
+
+function downloadScript() {
+  const blob = new Blob([generateScript()], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'climaiq_appscript.gs';
+  a.click(); URL.revokeObjectURL(url);
+  toast('Script descargado', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+function toast(msg, type = '') {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : 'ℹ ') + msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(20px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════════════════════════════
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+loadState();
+// Trigger color preview update on color input change
+document.getElementById('colorPrimary').addEventListener('input', updateColorPreviews);
+document.getElementById('colorAccent').addEventListener('input', updateColorPreviews);
+
+
+// ═══════════════════════════════════════════════════════════════
+// NUEVA ENCUESTA — HISTORIAL
+// ═══════════════════════════════════════════════════════════════
+
+function showNuevaEncuestaModal() {
+  const gasUrl = localStorage.getItem('climaiq_gas_url') || '';
+  const modal = document.createElement('div');
+  modal.id = 'nuevaEncuestaModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(11,31,58,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  modal.innerHTML = `
+    <div style="background:#fff;max-width:520px;width:100%;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3);">
+      <div style="background:#1A2F4A;padding:1.4rem 1.8rem;color:#fff;">
+        <div style="font-size:.6rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#7DD4A8;margin-bottom:.4rem;">✦ Nueva Encuesta</div>
+        <div style="font-size:1.2rem;font-weight:600;">Preparar para una nueva empresa</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:.3rem;">
+          La encuesta actual se archivará en Google Sheets. Luego configuras la nueva empresa.
+        </div>
+      </div>
+      <div style="padding:1.5rem 1.8rem;">
+        <div id="neStatus"></div>
+
+        <div style="background:#F0EDE8;border:1px solid #E2DDD8;padding:.9rem 1rem;margin-bottom:1.2rem;font-size:.78rem;color:#4A4642;line-height:1.65;">
+          <strong style="color:#1A2F4A;">¿Qué hará este proceso?</strong><br>
+          1. Renombra la hoja actual en Google Sheets como <em>"Empresa · fecha"</em> (queda como histórico)<br>
+          2. Crea una hoja nueva y limpia en el mismo Sheets<br>
+          3. Limpia la configuración del Panel Admin para la nueva empresa<br>
+          4. Los datos anteriores <strong>no se borran</strong> — quedan archivados en otra pestaña del mismo Sheets
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:.8rem;margin-bottom:1.2rem;">
+          <div>
+            <label style="font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9A9490;display:block;margin-bottom:.3rem;">URL del Apps Script (actual)</label>
+            <input id="ne_gasUrl" type="url" value="${gasUrl}" placeholder="https://script.google.com/macros/s/.../exec"
+              style="width:100%;font-size:.82rem;padding:.55rem .8rem;border:1px solid #E2DDD8;outline:none;font-family:inherit;">
+            <div style="font-size:.68rem;color:#9A9490;margin-top:.25rem;">Necesaria para archivar la hoja actual automáticamente</div>
+          </div>
+          <div>
+            <label style="font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9A9490;display:block;margin-bottom:.3rem;">Nombre de la nueva empresa</label>
+            <input id="ne_empresa" type="text" placeholder="Ej: Empresa ABC"
+              style="width:100%;font-size:.82rem;padding:.55rem .8rem;border:1px solid #E2DDD8;outline:none;font-family:inherit;">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+          <button onclick="ejecutarNuevaEncuesta()" 
+            style="background:#1A5C3A;color:#fff;border:none;padding:.6rem 1.2rem;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;flex:1;">
+            ✦ Archivar y comenzar nueva encuesta
+          </button>
+          <button onclick="soloLimpiarAdmin()"
+            style="background:transparent;color:#1A2F4A;border:1px solid #E2DDD8;padding:.6rem 1rem;font-size:.78rem;cursor:pointer;font-family:inherit;">
+            Solo limpiar Panel Admin
+          </button>
+          <button onclick="document.getElementById('nuevaEncuestaModal').remove()"
+            style="background:transparent;color:#9A9490;border:none;padding:.6rem .8rem;font-size:.78rem;cursor:pointer;font-family:inherit;">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function ejecutarNuevaEncuesta() {
+  const gasUrl = document.getElementById('ne_gasUrl').value.trim();
+  const empresa = document.getElementById('ne_empresa').value.trim();
+  const st = document.getElementById('neStatus');
+
+  if (!gasUrl) { st.innerHTML = banner('error', 'Ingresa la URL del Apps Script para continuar.'); return; }
+  if (!empresa) { st.innerHTML = banner('error', 'Escribe el nombre de la nueva empresa.'); return; }
+
+  // Construir URL de archivo
+  const archiveUrl = gasUrl + '?action=archiveAndReset&newName=' + encodeURIComponent(empresa);
+
+  st.innerHTML = banner('loading', '⟳ Preparando...');
+
+  // CORS impide leer la respuesta desde archivo local.
+  // Solución: abrir el URL en una pestaña nueva — el Apps Script ejecuta la función
+  // y el usuario puede verificar el resultado. Luego limpiamos el panel.
+  setTimeout(() => {
+    st.innerHTML = `
+      <div style="background:#EBF2FA;border:1px solid #C5D8F0;border-left:3px solid #1A4A7A;padding:.8rem 1rem;font-size:.78rem;line-height:1.7;margin-bottom:.8rem;">
+        <strong style="color:#1A2F4A;">Paso 1 de 2 — Archivar en Google Sheets</strong><br>
+        Haz clic en el botón de abajo para abrir el script en una nueva pestaña.
+        Verás un mensaje JSON confirmando que la hoja fue archivada.<br>
+        <a href="${archiveUrl}" target="_blank"
+          onclick="setTimeout(()=>mostrarPaso2('${empresa.replace(/'/g,"\'")}','${gasUrl.replace(/'/g,"\'")}'),2000)"
+          style="display:inline-block;margin-top:.6rem;background:#1A2F4A;color:#fff;padding:.45rem 1rem;font-weight:600;text-decoration:none;font-size:.78rem;">
+          🔗 Abrir y ejecutar archivo en Sheets →
+        </a>
+      </div>`;
+  }, 300);
+}
+
+function mostrarPaso2(empresa, gasUrl) {
+  const st = document.getElementById('neStatus');
+  if (!st) return;
+  st.innerHTML = `
+    <div style="background:#EBF5EF;border:1px solid #B5D8C5;border-left:3px solid #1A5C3A;padding:.8rem 1rem;font-size:.78rem;line-height:1.7;margin-bottom:.8rem;">
+      <strong style="color:#1A5C3A;">✓ Paso 2 de 2 — Limpiar Panel Admin</strong><br>
+      Si en la pestaña anterior viste <em>{"success":true}</em>, la hoja ya quedó archivada.<br>
+      Ahora limpia el panel para comenzar con <strong>${empresa}</strong>.
+    </div>
+    <button onclick="confirmarLimpiezaAdmin('${empresa.replace(/'/g,"\'")}','${gasUrl.replace(/'/g,"\'")}',true)"
+      style="background:#1A5C3A;color:#fff;border:none;padding:.6rem 1.2rem;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;width:100%;margin-bottom:.4rem;">
+      ✓ La hoja se archivó — Limpiar Panel Admin y comenzar
+    </button>
+    <button onclick="confirmarLimpiezaAdmin('${empresa.replace(/'/g,"\'")}','${gasUrl.replace(/'/g,"\'")}',false)"
+      style="background:transparent;color:#8B2A1F;border:1px solid #E2B2AE;padding:.5rem 1rem;font-size:.75rem;cursor:pointer;font-family:inherit;width:100%;">
+      La pestaña mostró error — Solo limpiar Panel Admin (archivo manual)
+    </button>`;
+}
+
+function confirmarLimpiezaAdmin(empresa, gasUrl, archivadoOk) {
+  guardarHistorial(empresa, gasUrl, archivadoOk ? empresa + ' · archivado automático' : 'Archivo manual pendiente');
+  limpiarAdminParaNuevaEmpresa(empresa, gasUrl);
+  document.getElementById('nuevaEncuestaModal').remove();
+  toast('¡Panel listo para "' + empresa + '"!', 'success');
+}
+
+function soloLimpiarAdmin() {
+  const empresa = document.getElementById('ne_empresa').value.trim();
+  const gasUrl  = document.getElementById('ne_gasUrl').value.trim();
+  if (!empresa) {
+    document.getElementById('neStatus').innerHTML = banner('error', 'Escribe el nombre de la nueva empresa primero.');
+    return;
+  }
+  guardarHistorial(empresa, gasUrl, 'Archivado manual');
+  limpiarAdminParaNuevaEmpresa(empresa, gasUrl);
+  document.getElementById('nuevaEncuestaModal').remove();
+  toast(`Panel listo para "${empresa}". Archiva la hoja en Sheets manualmente.`, 'success');
+}
+
+function limpiarAdminParaNuevaEmpresa(empresa, gasUrl) {
+  // Guardar historial de la config actual antes de limpiar
+  const histEntry = {
+    empresa: S.identity.companyName || 'Sin nombre',
+    fecha: new Date().toISOString(),
+    gasUrl: localStorage.getItem('climaiq_gas_url') || '',
+    config: JSON.parse(JSON.stringify(S))
+  };
+  const hist = JSON.parse(localStorage.getItem('climaiq_historial') || '[]');
+  hist.unshift(histEntry);
+  localStorage.setItem('climaiq_historial', JSON.stringify(hist.slice(0, 20))); // máx 20
+
+  // Resetear a config limpia conservando solo lo esencial del sistema
+  const DEFAULT = {
+    identity: { companyName: empresa, logoData: '', primaryColor: '#0B1F3A', accentColor: '#C09648' },
+    areas: [],
+    globalQuestions: [{ id: 'gq_default', text: 'Escribe aquí la nueva pregunta...', required: true }],
+    settings: {
+      allowAnonymous: true, showPropuestas: true, showObservaciones: true,
+      showProgress: true, showScale: true,
+      scale: ['Nunca', 'Pocas veces', 'Frecuentemente', 'Siempre']
+    }
+  };
+  S = DEFAULT;
+  localStorage.setItem('climaiq_gas_url', gasUrl || '');
+  saveState();
+  applyStateToUI();
+  goTo('identity');
+}
+
+function guardarHistorial(empresa, gasUrl, sheetArchivada) {
+  const hist = JSON.parse(localStorage.getItem('climaiq_historial') || '[]');
+  const existe = hist.find(h => h.empresa === (S.identity.companyName || 'Sin nombre') && !h.archivada);
+  if (!existe) {
+    hist.unshift({
+      empresa: S.identity.companyName || 'Sin nombre',
+      fecha: new Date().toISOString(),
+      gasUrl: gasUrl || localStorage.getItem('climaiq_gas_url') || '',
+      sheetArchivada: sheetArchivada,
+      config: JSON.parse(JSON.stringify(S))
+    });
+    localStorage.setItem('climaiq_historial', JSON.stringify(hist.slice(0, 20)));
+  }
+}
+
+function showHistorialModal() {
+  const hist = JSON.parse(localStorage.getItem('climaiq_historial') || '[]');
+  const modal = document.createElement('div');
+  modal.id = 'historialModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(11,31,58,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  
+  let rows = '';
+  if (hist.length === 0) {
+    rows = '<div style="padding:2rem;text-align:center;color:#9A9490;font-size:.82rem;">Aún no hay encuestas archivadas.<br>Usa \"Nueva Encuesta\" para comenzar a construir tu historial.</div>';
+  } else {
+    hist.forEach(function(h, i) {
+      var bg = i === 0 ? 'background:#F5F9F6;' : '';
+      var fecha = new Date(h.fecha).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'});
+      var sheet = h.sheetArchivada ? '· Hoja: ' + h.sheetArchivada : '';
+      var gasInfo = h.gasUrl ? '<div style="font-size:.65rem;color:#9A9490;margin-top:.1rem;">' + h.gasUrl + '</div>' : '';
+      var gasBtn = '';
+      if (h.gasUrl) {
+        var safeUrl = h.gasUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        gasBtn = '<button onclick="restaurarGasUrl(\'' + safeUrl + '\')" style="font-size:.68rem;padding:.3rem .7rem;background:#EBF2FA;color:#1A4A7A;border:1px solid #C5D8F0;cursor:pointer;">🔗 Reconectar</button>';
+      }
+      rows += '<div style="display:flex;align-items:flex-start;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid #E2DDD8;' + bg + '">'
+            + '<div style="flex:1;min-width:0;">'
+            + '<div style="font-size:.85rem;font-weight:600;color:#1A2F4A;">' + h.empresa + '</div>'
+            + '<div style="font-size:.7rem;color:#9A9490;margin-top:.15rem;">' + fecha + ' ' + sheet + '</div>'
+            + gasInfo
+            + '</div>'
+            + '<div style="display:flex;gap:.4rem;flex-shrink:0;">'
+            + gasBtn
+            + '<button onclick="restaurarConfig(' + i + ')" style="font-size:.68rem;padding:.3rem .7rem;background:#EBF5EF;color:#1A5C3A;border:1px solid #B5D8C5;cursor:pointer;">↩ Restaurar Config</button>'
+            + '</div></div>';
+    });
+  }
+
+  modal.innerHTML = `
+    <div style="background:#fff;max-width:600px;width:100%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.3);">
+      <div style="background:#1A2F4A;padding:1.2rem 1.8rem;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div>
+          <div style="font-size:.6rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#B8892A;margin-bottom:.3rem;">📂 Historial</div>
+          <div style="font-size:1.1rem;font-weight:600;">Encuestas anteriores</div>
+        </div>
+        <button onclick="document.getElementById('historialModal').remove()"
+          style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:.35rem .75rem;cursor:pointer;font-family:inherit;font-size:.8rem;">✕ Cerrar</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;">
+        <div style="padding:.6rem 1rem;background:#F0EDE8;border-bottom:1px solid #E2DDD8;font-size:.68rem;color:#9A9490;">
+          ${hist.length} encuesta${hist.length!==1?'s':''} archivada${hist.length!==1?'s':''}
+          · Los datos en Sheets se conservan en hojas separadas
+        </div>
+        ${rows}
+      </div>
+      ${hist.length > 0 ? `
+      <div style="padding:.8rem 1rem;border-top:1px solid #E2DDD8;background:#FAFAF8;display:flex;justify-content:flex-end;flex-shrink:0;">
+        <button onclick="limpiarHistorial()" style="font-size:.7rem;color:#8B2A1F;background:transparent;border:1px solid #E2B2AE;padding:.3rem .8rem;cursor:pointer;font-family:inherit;">
+          🗑 Limpiar historial local
+        </button>
+      </div>` : ''}
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function restaurarConfig(idx) {
+  const hist = JSON.parse(localStorage.getItem('climaiq_historial') || '[]');
+  if (!hist[idx]) return;
+  if (!confirm(`¿Restaurar la configuración de "${hist[idx].empresa}"? La config actual del panel se perderá.`)) return;
+  S = deepMerge(S, hist[idx].config);
+  saveState();
+  applyStateToUI();
+  document.getElementById('historialModal').remove();
+  toast(`Configuración de "${hist[idx].empresa}" restaurada`, 'success');
+}
+
+function restaurarGasUrl(url) {
+  localStorage.setItem('climaiq_gas_url', url);
+  document.getElementById('historialModal').remove();
+  toast('URL del Apps Script reconectada', 'success');
+}
+
+function limpiarHistorial() {
+  if (!confirm('¿Limpiar el historial local? Los datos en Google Sheets NO se borran.')) return;
+  localStorage.removeItem('climaiq_historial');
+  document.getElementById('historialModal').remove();
+  toast('Historial local limpiado', 'success');
+}
+
+function banner(type, msg) {
+  const styles = {
+    loading: 'background:#FBF5E8;border:1px solid rgba(184,137,42,.2);border-left:3px solid #B8892A;color:#8A5210',
+    ok:      'background:#EBF5EF;border:1px solid rgba(26,92,58,.2);border-left:3px solid #1A5C3A;color:#1A5C3A',
+    error:   'background:#FAF0EE;border:1px solid rgba(139,42,31,.2);border-left:3px solid #8B2A1F;color:#8B2A1F'
+  };
+  return `<div style="${styles[type]||styles.error};padding:.6rem .9rem;font-size:.78rem;line-height:1.5;margin-bottom:.8rem;">${msg}</div>`;
+}
+
+</script>
+</body>
+</html>
