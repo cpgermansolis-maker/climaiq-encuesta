@@ -2611,6 +2611,11 @@ function buildRTF({ company, fecha, logo, total, totalAreas, conNombre, GLOBAL, 
   // comentario con "<" se lo traga Word y el informe pierde texto sin avisar.
   // Los saltos de línea se conservan, porque hay respuestas de varios párrafos.
   const tx = s => esc(s).replace(/\r?\n/g, '<br>');
+  // Los comentarios van en un párrafo por línea y no con <br>: como el texto
+  // está justificado, la línea que antecede a un <br> se estira de margen a
+  // margen y el comentario se lee como una hilera de palabras sueltas.
+  const txCita = s => esc(s).split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    .map((l, i) => `<p class="cita-txt"${i ? ' style="margin-top:3pt"' : ''}>${l}</p>`).join('');
 
   const participacion = plantilla
     ? total + ' de ' + plantilla + ' (' + Math.round(total / plantilla * 100) + '% de participación)'
@@ -2664,6 +2669,13 @@ function buildRTF({ company, fecha, logo, total, totalAreas, conNombre, GLOBAL, 
   .acc-due { font-size: 8pt; font-weight: bold; color: #1A2F4A; margin: 1pt 0 0 0; text-align: left; }
   .pie { font-size: 7.5pt; color: #9A9490; text-align: center; margin-top: 22pt;
          border-top: 0.5pt solid #E2DDD8; padding-top: 6pt; }
+  /* Paginación en Word: page-break-after:avoid entra como "conservar con el
+     siguiente". Sin esto, un título de sección, la etiqueta de un comentario o
+     el chip de prioridad se quedan solos al pie de la página y su texto arranca
+     en la siguiente. Se verificó abriendo el .doc en Word, no en el navegador. */
+  h2, h3, .cita-tipo, .acc-chip-p, .acc-txt { page-break-after: avoid; }
+  .acc { page-break-inside: avoid; }
+  .acc-chip-p { margin: 0; }
 </style>
 </head>
 <body>
@@ -2694,7 +2706,7 @@ ${logo ? `<p style="margin:0 0 8pt 0;text-align:right;"><img src="${logo}" style
 
 <h2>Por área</h2>
 <table>
-<tr><th>Área</th><th>Participantes</th><th>Calificación</th><th>Nivel</th></tr>
+<thead><tr><th>Área</th><th>Participantes</th><th>Calificación</th><th>Nivel</th></tr></thead>
 ${areasOrdenadas.map(a => `
 <tr>
   <td><strong>${tx(a.area)}</strong></td>
@@ -2707,7 +2719,7 @@ ${areasReservadas.length > 0 ? `<p class="nota">No se desglosa ${areasReservadas
 
 <h2>Por dimensión, de menor a mayor</h2>
 <table>
-<tr><th>Pregunta</th><th>Respuestas</th><th>Calificación</th><th>Nivel</th></tr>
+<thead><tr><th>Pregunta</th><th>Respuestas</th><th>Calificación</th><th>Nivel</th></tr></thead>
 ${dimsOrdenadas.map(d => `
 <tr>
   <td>${tx(d.label)}</td>
@@ -2722,9 +2734,9 @@ ${dimsOrdenadas.map(d => `
 ${nComentarios > 0 ? `
 <p>Se transcriben los <strong>${nComentarios}</strong> comentarios recibidos, literales y con su redacción original, sin resumir ni recortar. No se indica el área de cada comentario: la encuesta no la registra por comentario y, en un área pequeña, la etiqueta señalaría a quien escribió.</p>
 ${propuestas.length > 0 ? `<h3>Propuestas de mejora (${propuestas.length})</h3>
-${propuestas.map(p => `<div class="cita"><p class="cita-tipo">Propuesta de mejora</p><p class="cita-txt">${tx(p)}</p></div>`).join('')}` : ''}
+${propuestas.map(p => `<div class="cita"><p class="cita-tipo">Propuesta de mejora</p>${txCita(p)}</div>`).join('')}` : ''}
 ${observaciones.length > 0 ? `<h3>Observaciones (${observaciones.length})</h3>
-${observaciones.map(o => `<div class="cita"><p class="cita-tipo">Observación</p><p class="cita-txt">${tx(o)}</p></div>`).join('')}` : ''}
+${observaciones.map(o => `<div class="cita"><p class="cita-tipo">Observación</p>${txCita(o)}</div>`).join('')}` : ''}
 ` : `
 <p>No se recibieron comentarios abiertos. El análisis cuantitativo arroja lo siguiente:</p>
 <ul>${hallazgos.map(h => `<li>${tx(h)}</li>`).join('')}</ul>
@@ -2736,7 +2748,7 @@ ${observaciones.map(o => `<div class="cita"><p class="cita-tipo">Observación</p
 <h2>Acciones recomendadas</h2>
 ${acciones.map(a => `
 <div class="acc">
-  <span class="acc-chip" style="background-color:#${chip(a.prioridad)}">${a.prioridad.toUpperCase()}</span>
+  <p class="acc-chip-p"><span class="acc-chip" style="background-color:#${chip(a.prioridad)}">${a.prioridad.toUpperCase()}</span></p>
   <p class="acc-txt">${tx(a.accion)}</p>
   ${(a.responsable || a.fecha) ? `<p class="acc-due">Fecha y responsable propuestos: ${tx([a.fecha, a.responsable].filter(Boolean).join(' · '))}</p>` : ''}
 </div>`).join('')}
