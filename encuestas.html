@@ -185,12 +185,18 @@ function menuMovil() {
 }
 window.menuMovil = menuMovil;
 
+// Toda consulta va firmada con la clave. El servidor dejó de entregar
+// respuestas de personas a quien nada más tenga la dirección, y la dirección
+// es pública: viene escrita dentro de la página que abre la encuesta.
 async function api(params) {
   const u = new URL(URL_GAS);
   Object.keys(params).forEach(k => u.searchParams.set(k, params[k]));
+  if (CLAVE) u.searchParams.set('clave', CLAVE);
   u.searchParams.set('_', Date.now());   // sin caché: el avance cambia solo
   const r = await fetch(u.toString(), { cache: 'no-store' });
-  return await r.json();
+  const j = await r.json();
+  if (j && j.needsKey) { CLAVE = ''; localStorage.removeItem('climaiq_clave_pub'); }
+  return j;
 }
 
 // La liga de la encuesta se arma con la dirección de esta misma página, así
@@ -202,6 +208,50 @@ function ligaDe(id) {
 
 function nivelPct(p) {
   return p >= 80 ? 'is-good' : p >= 50 ? 'is-warn' : 'is-bad';
+}
+
+// Si el servidor no reconoce la clave, se pide aquí mismo y se comprueba
+// contra el servidor ANTES de guardarla. Guardar primero y comprobar después
+// deja una clave equivocada en el navegador que después nadie sabe por qué
+// falla; ya pasó una vez.
+function pantallaClave() {
+  $('estado').innerHTML =
+    '<div class="aviso malo" style="display:block">' +
+      '<b>Los resultados están protegidos.</b><br>' +
+      'Captura la clave de acceso para ver las encuestas de esta cuenta. ' +
+      'Es la misma con la que se publican. Se pide una vez y queda guardada en este navegador.' +
+      '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
+        '<input id="inpClave" type="password" placeholder="Clave" autocomplete="current-password" ' +
+          'style="flex:1;min-width:180px;padding:9px 11px;border:1px solid var(--linea,#d7dde5);border-radius:8px;font:inherit">' +
+        '<button class="btn" id="btnClave">Entrar</button>' +
+      '</div>' +
+      '<div id="errClave" style="margin-top:8px;font-size:.84rem;color:#b3261e;display:none"></div>' +
+    '</div>';
+
+  const inp = $('inpClave'), err = $('errClave'), btn = $('btnClave');
+  const entrar = async () => {
+    const v = inp.value.trim();
+    if (!v) { err.textContent = 'Escribe la clave.'; err.style.display = 'block'; return; }
+    btn.disabled = true; btn.textContent = 'Comprobando…'; err.style.display = 'none';
+    try {
+      const r = await fetch(URL_GAS + '?action=listSheets&clave=' + encodeURIComponent(v));
+      const j = await r.json();
+      if (j.success) {
+        localStorage.setItem('climaiq_clave_pub', v);
+        CLAVE = v;
+        cargar();
+        return;
+      }
+      err.textContent = 'Esa clave no es la correcta.';
+    } catch (e) {
+      err.textContent = 'No se pudo comprobar: ' + ((e && e.message) || 'falló la conexión.');
+    }
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Entrar';
+  };
+  btn.onclick = entrar;
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') entrar(); });
+  inp.focus();
 }
 
 async function cargar() {
@@ -219,6 +269,7 @@ async function cargar() {
       api({ action: 'listSurveys' }),
       api({ action: 'listSheets' })
     ]);
+    if (pub.needsKey || hojas.needsKey) { pantallaClave(); return; }
     if (!pub.success)   throw new Error(pub.error   || 'No se pudieron leer las encuestas.');
     if (!hojas.success) throw new Error(hojas.error || 'No se pudieron leer las hojas.');
 

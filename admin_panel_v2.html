@@ -2181,10 +2181,75 @@ var HOJA_ENCUESTAS = '_encuestas';
 // encuesta con logo pesa más que eso: se guarda partida en varias.
 var MAX_CELDA = 45000;
 var COLS_ENCUESTA = ['id', 'nombre', 'hoja', 'activa', 'actualizada'];
-// Publicar es escritura: sin esta clave cualquiera que descubra la URL
-// podría cambiarle las preguntas a una encuesta abierta. Vive aquí y en
-// el navegador de quien administra; la encuesta publicada nunca la trae.
-var CLAVE_ADMIN = '${clave}';
+// ── LA LLAVE ──────────────────────────────────────────────────
+// La clave YA NO VIVE EN ESTE ARCHIVO. Vive en Propiedades del script,
+// dentro del proyecto de Google:
+//     Apps Script → ⚙ Configuración del proyecto → Propiedades del script
+//     CLAVE_ADMIN = ...
+//
+// Se movió ahí para poder respaldar este código sin que la llave viaje
+// con él. Mientras estuvo escrita aquí, respaldar el archivo y regalar el
+// acceso eran la misma cosa.
+//
+// CLAVE_INICIAL solo sirve para una instalación nueva: la primera vez que
+// corre se copia sola a Propiedades y después ya no se vuelve a leer.
+// Aquí se deja vacía en cuanto la mudanza terminó.
+// Vacía porque la mudanza ya se hizo: la clave está en Propiedades del
+// script desde el despliegue @31, y ?test=1 lo confirma con "llave": true.
+var CLAVE_INICIAL = '${clave}';
+
+function claveAdmin() {
+  var props = PropertiesService.getScriptProperties();
+  var v = props.getProperty('CLAVE_ADMIN');
+  if (!v && CLAVE_INICIAL) {
+    props.setProperty('CLAVE_ADMIN', CLAVE_INICIAL);
+    v = CLAVE_INICIAL;
+  }
+  return String(v || '');
+}
+
+// Sin clave guardada NADIE pasa. Si se devolviera cierto cuando la
+// propiedad está vacía, un despliegue recién instalado quedaría abierto de
+// par en par y nadie se daría cuenta.
+function autorizado(p) {
+  var esperada = claveAdmin();
+  if (!esperada) return false;
+  return String((p && (p.clave || p._clave)) || '') === esperada;
+}
+
+var SIN_LLAVE = {
+  success: false,
+  needsKey: true,
+  error: 'Estos datos están protegidos. Captura la clave de acceso para verlos.'
+};
+
+// ── CONFIRMAR UN GUARDADO SIN ENSEÑAR NADA ────────────────────
+// El trabajador que contesta no tiene ninguna clave, y su navegador necesita
+// poder comprobar que su respuesta entró. Antes lo comprobaba leyendo la hoja
+// completa, que es justo lo que acabamos de cerrar.
+//
+// Ahora la encuesta manda un folio al azar pegado a su respuesta. Al
+// guardarla, el folio queda anotado unas horas. Preguntar por un folio
+// contesta sí o no y nada más: quien no lo inventó no puede sacarle nada, así
+// que esta puerta puede quedar abierta sin riesgo.
+//
+// Va en la memoria temporal y no en una hoja a propósito: el apretón de manos
+// dura segundos y no vale la pena escribirlo en el archivo.
+function anotarFolio(folio) {
+  if (!folio) return;
+  try {
+    CacheService.getScriptCache().put('folio_' + String(folio).slice(0, 60), '1', 21600);
+  } catch (e) {}
+}
+
+function folioGuardado(folio) {
+  if (!folio) return false;
+  try {
+    return CacheService.getScriptCache().get('folio_' + String(folio).slice(0, 60)) === '1';
+  } catch (e) {
+    return false;
+  }
+}
 
 // Columnas que no son preguntas de la escala 1-4
 var META = [
@@ -2200,6 +2265,8 @@ function doPost(e) {
     // El panel usa la misma entrada para publicar encuestas
     if (data._op === 'saveSurvey')   return responder(guardarEncuesta(data));
     if (data._op === 'deleteSurvey') return responder(borrarEncuesta(data));
+    if (data._op === 'setPlantilla') return responder(guardarPlantilla(data));
+    if (data._op === 'setDatosEncuesta') return responder(guardarDatosEncuesta(data));
     var hoja = guardarRespuesta(data);
     return responder({ success: true, sheet: hoja });
   } catch (err) {
@@ -2208,6 +2275,21 @@ function doPost(e) {
 }
 
 // ── ENTRADA: consultas del dashboard ──────────────────────────
+//
+// La dirección de este despliegue es pública: viene escrita dentro de la
+// página que abre la encuesta, y tiene que estarlo para que el trabajador
+// pueda contestar. Así que la dirección NO es el secreto. Lo único que
+// separa los datos de un desconocido es la clave, y por eso todo lo que
+// devuelve información de personas la pide.
+//
+// Abiertas a propósito, y solo estas tres:
+//   ?test=1                  para saber si el servidor responde
+//   ?action=getSurvey        el formulario en blanco que contesta la gente
+//   ?action=checkSave        sí o no a "¿entró mi respuesta?", sin datos
+//
+// Un desconocido con la dirección puede ver el formulario y mandar una
+// respuesta de más. Eso se nota y se corrige. Leer lo que contestó la
+// gente, no.
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
@@ -2215,9 +2297,24 @@ function doGet(e) {
       return responder({
         status: 'ok',
         message: 'ClimaIQ multiempresa activo',
-        hojas: listarHojas().length
+        llave: !!claveAdmin()   // si viene false, el servidor está sin candado
       });
     }
+    if (p.action === 'getSurvey') {
+      return responder(obtenerEncuesta(p.id));
+    }
+    if (p.action === 'checkSave') {
+      return responder({ success: true, guardada: folioGuardado(p.folio) });
+    }
+
+    // De aquí para abajo, todo pide clave.
+    var protegidas = ['listSheets', 'getData', 'archiveAndReset',
+                      'getPlantilla', 'getDatosEncuesta', 'listSurveys',
+                      'getSurveyRaw'];
+    if (protegidas.indexOf(p.action) !== -1 && !autorizado(p)) {
+      return responder(SIN_LLAVE);
+    }
+
     if (p.action === 'listSheets') {
       return responder({ success: true, sheets: listarHojas() });
     }
@@ -2227,11 +2324,19 @@ function doGet(e) {
     if (p.action === 'archiveAndReset') {
       return responder(archivarHoja(p.sheet, p.newName));
     }
-    if (p.action === 'getSurvey') {
-      return responder(obtenerEncuesta(p.id));
+    if (p.action === 'getPlantilla') {
+      return responder({ success: true, sheet: p.sheet || '', plantilla: leerPlantilla(p.sheet) });
+    }
+    if (p.action === 'getDatosEncuesta') {
+      return responder({ success: true, sheet: p.sheet || '', datos: leerDatos(p.sheet) });
     }
     if (p.action === 'listSurveys') {
       return responder({ success: true, surveys: listarEncuestas() });
+    }
+    // La encuesta CON su definición interna, para poder volver a publicarla
+    // sin perder nada de lo que se armó en el panel.
+    if (p.action === 'getSurveyRaw') {
+      return responder(obtenerEncuesta(p.id, true));
     }
     return responder({
       success: false,
@@ -2301,6 +2406,8 @@ function guardarRespuesta(data) {
   }
 
   hoja.appendRow(fila);
+  // Después de escribir, no antes: el folio solo vale si la fila ya está.
+  anotarFolio(data._folio);
   return hoja.getName();
 }
 
@@ -2315,7 +2422,7 @@ function obtenerDatos(nombreSolicitado) {
 
   var valores = hoja.getDataRange().getValues();
   if (valores.length < 2) {
-    return { success: true, data: [], questions: [], total: 0, sheet: hoja.getName() };
+    return { success: true, data: [], questions: [], total: 0, sheet: hoja.getName(), plantilla: leerPlantilla(hoja.getName()) };
   }
 
   var headers = leerEncabezadosDe(valores[0]);
@@ -2375,6 +2482,7 @@ function obtenerDatos(nombreSolicitado) {
     questions: soloClaveEtiqueta,
     total: filas.length,
     sheet: hoja.getName(),
+    plantilla: leerPlantilla(hoja.getName()),
     updatedAt: Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm')
   };
 }
@@ -2424,7 +2532,7 @@ function contenidoDeFila(hoja, fila) {
 }
 
 function guardarEncuesta(data) {
-  if (String(data._clave || '') !== CLAVE_ADMIN) {
+  if (String(data._clave || '') !== claveAdmin()) {
     return { success: false, error: 'Clave de publicación incorrecta.' };
   }
   var id = idEncuesta(data.id || data.nombre);
@@ -2479,7 +2587,7 @@ function desactivarOtras(hoja, filaViva) {
 }
 
 function borrarEncuesta(data) {
-  if (String(data._clave || '') !== CLAVE_ADMIN) {
+  if (String(data._clave || '') !== claveAdmin()) {
     return { success: false, error: 'Clave de publicación incorrecta.' };
   }
   var hoja = hojaEncuestas(false);
@@ -2490,7 +2598,10 @@ function borrarEncuesta(data) {
   return { success: true, id: idEncuesta(data.id) };
 }
 
-function obtenerEncuesta(id) {
+// conConfig solo lo pide quien tiene la clave. La encuesta en blanco que
+// recibe el trabajador no necesita la definición interna, y esa puerta está
+// abierta: entre menos entregue, mejor.
+function obtenerEncuesta(id, conConfig) {
   var hoja = hojaEncuestas(false);
   if (!hoja || hoja.getLastRow() < 2) {
     return { success: false, error: 'Todavía no se ha publicado ninguna encuesta desde el panel.' };
@@ -2527,6 +2638,7 @@ function obtenerEncuesta(id) {
     hoja: String(datos[2]),
     activa: String(datos[3]).toUpperCase() === 'SI',
     actualizada: String(datos[4]),
+    config: conConfig ? (obj.config || null) : undefined,
     html: obj.html || ''
   };
 }
@@ -2535,6 +2647,9 @@ function listarEncuestas() {
   var hoja = hojaEncuestas(false);
   if (!hoja || hoja.getLastRow() < 2) return [];
   var filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, COLS_ENCUESTA.length).getValues();
+  // El registro se lee UNA vez, no una por encuesta: leer una hoja dentro de
+  // un bucle es lo que termina reventando por tiempo cuando crecen los datos.
+  var registro = mapaDatos();
   var salida = [];
   for (var i = 0; i < filas.length; i++) {
     if (!String(filas[i][0]).trim()) continue;
@@ -2543,7 +2658,8 @@ function listarEncuestas() {
       nombre: String(filas[i][1]),
       hoja: String(filas[i][2]),
       activa: String(filas[i][3]).toUpperCase() === 'SI',
-      actualizada: String(filas[i][4])
+      actualizada: String(filas[i][4]),
+      datos: registro[limpiar(String(filas[i][2]))] || null
     });
   }
   return salida;
@@ -2567,6 +2683,159 @@ function partir(texto, tamano) {
   var trozos = [];
   for (var i = 0; i < texto.length; i += tamano) trozos.push(texto.substring(i, i + tamano));
   return trozos.length ? trozos : [''];
+}
+
+// ── PLANTILLA DE CADA EMPRESA ─────────────────────────────────
+// Cuántas personas trabajan en la empresa, para calcular la tasa de
+// participación del informe. Vivía en el navegador, así que se perdía al
+// abrir el dashboard en otra computadora y el informe salía sin ese dato
+// sin explicar por qué. Ahora vive junto a las respuestas.
+var HOJA_PLANTILLAS = '_plantillas';
+
+// La hoja guarda el registro de cada encuesta: cuánta gente trabaja ahí, desde
+// cuándo está abierta, hasta cuándo, y quién responde por ella. Nació guardando
+// solo la plantilla, así que conserva ese nombre para no perder lo ya escrito.
+var COLS_DATOS = ['hoja', 'plantilla', 'actualizada', 'apertura', 'cierre', 'responsable'];
+
+function hojaPlantillas(crear) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(HOJA_PLANTILLAS);
+  if (!hoja && crear) {
+    hoja = ss.insertSheet(HOJA_PLANTILLAS, ss.getSheets().length);
+    hoja.appendRow(COLS_DATOS);
+    formatoEncabezado(hoja, COLS_DATOS.length);
+    hoja.hideSheet();
+    return hoja;
+  }
+  // Una hoja creada antes solo tiene las tres primeras columnas. Se le agregan
+  // las que faltan sin tocar lo ya capturado: crecer nunca borra.
+  if (hoja && crear) {
+    var enc = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+    if (enc.length < COLS_DATOS.length) {
+      if (hoja.getMaxColumns() < COLS_DATOS.length) {
+        hoja.insertColumnsAfter(hoja.getMaxColumns(), COLS_DATOS.length - hoja.getMaxColumns());
+      }
+      hoja.getRange(1, 1, 1, COLS_DATOS.length).setValues([COLS_DATOS]);
+      formatoEncabezado(hoja, COLS_DATOS.length);
+    }
+  }
+  return hoja;
+}
+
+// Devuelve la fila del registro, o 0 si esa encuesta todavía no tiene.
+function filaDatos(hoja, nombreHoja) {
+  if (!hoja || hoja.getLastRow() < 2) return 0;
+  var nombres = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1).getValues();
+  var buscado = limpiar(nombreHoja);
+  for (var i = 0; i < nombres.length; i++) {
+    if (limpiar(nombres[i][0]) === buscado) return i + 2;
+  }
+  return 0;
+}
+
+function leerPlantilla(nombreHoja) {
+  var d = leerDatos(nombreHoja);
+  return d ? d.plantilla : null;
+}
+
+// Todo el registro en una sola lectura, indexado por nombre de hoja.
+function mapaDatos() {
+  var hoja = hojaPlantillas(false);
+  var mapa = {};
+  if (!hoja || hoja.getLastRow() < 2) return mapa;
+  var ancho = Math.min(hoja.getLastColumn(), COLS_DATOS.length);
+  var filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, ancho).getValues();
+  for (var i = 0; i < filas.length; i++) {
+    var r = filas[i];
+    if (!String(r[0]).trim()) continue;
+    var n = parseInt(r[1], 10);
+    mapa[limpiar(String(r[0]))] = {
+      plantilla:   n > 0 ? n : null,
+      actualizada: String(r[2] || ''),
+      apertura:    String(r[3] || ''),
+      cierre:      String(r[4] || ''),
+      responsable: String(r[5] || '')
+    };
+  }
+  return mapa;
+}
+
+function leerDatos(nombreHoja) {
+  var hoja = hojaPlantillas(false);
+  if (!hoja || !nombreHoja) return null;
+  var fila = filaDatos(hoja, nombreHoja);
+  if (!fila) return null;
+  var ancho = Math.min(hoja.getLastColumn(), COLS_DATOS.length);
+  var r = hoja.getRange(fila, 1, 1, ancho).getValues()[0];
+  var n = parseInt(r[1], 10);
+  return {
+    plantilla:   n > 0 ? n : null,
+    actualizada: String(r[2] || ''),
+    apertura:    String(r[3] || ''),
+    cierre:      String(r[4] || ''),
+    responsable: String(r[5] || '')
+  };
+}
+
+// Guarda apertura, cierre y responsable SIN tocar la plantilla ni la fecha de
+// actualización: son campos distintos y se capturan en momentos distintos.
+function guardarDatosEncuesta(data) {
+  if (String(data._clave || '') !== claveAdmin()) {
+    return { success: false, error: 'Clave de publicación incorrecta.' };
+  }
+  var nombreHoja = limpiar(data.sheet || '');
+  if (!nombreHoja) return { success: false, error: 'Falta la encuesta.' };
+
+  var hoja = hojaPlantillas(true);
+  var fila = filaDatos(hoja, nombreHoja);
+  if (!fila) {
+    fila = Math.max(2, hoja.getLastRow() + 1);
+    hoja.getRange(fila, 1, 1, COLS_DATOS.length).setNumberFormat('@');
+    hoja.getRange(fila, 1).setValue(nombreHoja);
+  }
+  // Texto plano: sin esto la hoja convierte una fecha en objeto Date y la
+  // devuelve con hora y en otro huso, y el campo deja de coincidir con lo capturado.
+  hoja.getRange(fila, 4, 1, 3).setNumberFormat('@');
+  hoja.getRange(fila, 4, 1, 3).setValues([[
+    recortar(String(data.apertura    || '')),
+    recortar(String(data.cierre      || '')),
+    recortar(String(data.responsable || ''))
+  ]]);
+  return { success: true, sheet: nombreHoja, datos: leerDatos(nombreHoja) };
+}
+
+function guardarPlantilla(data) {
+  if (String(data._clave || '') !== claveAdmin()) {
+    return { success: false, error: 'Clave de publicación incorrecta.' };
+  }
+  var nombreHoja = limpiar(data.sheet || '');
+  if (!nombreHoja) return { success: false, error: 'Falta la encuesta a la que pertenece la plantilla.' };
+
+  var n = parseInt(data.plantilla, 10);
+  var hoja = hojaPlantillas(true);
+  var fila = filaDatos(hoja, nombreHoja);
+
+  // Quitar la plantilla ya NO borra la fila: ahí viven también la apertura, el
+  // cierre y el responsable, y borrarla se los llevaría de corbata. Se vacía
+  // solo su celda, y la fila se elimina únicamente si no queda nada más.
+  if (!(n > 0)) {
+    if (fila) {
+      hoja.getRange(fila, 2).setValue('');
+      var resto = hoja.getRange(fila, 4, 1, 3).getValues()[0].join('').trim();
+      if (!resto) hoja.deleteRow(fila);
+    }
+    return { success: true, sheet: nombreHoja, plantilla: null };
+  }
+
+  if (!fila) {
+    fila = Math.max(2, hoja.getLastRow() + 1);
+    hoja.getRange(fila, 1, 1, COLS_DATOS.length).setNumberFormat('@');
+  }
+  hoja.getRange(fila, 1, 1, 3).setNumberFormat('@');
+  hoja.getRange(fila, 1, 1, 3).setValues([[
+    nombreHoja, String(n), Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm')
+  ]]);
+  return { success: true, sheet: nombreHoja, plantilla: n };
 }
 
 // ── HOJAS ─────────────────────────────────────────────────────
@@ -3460,9 +3729,15 @@ document.getElementById('surveyForm').addEventListener('submit', async function(
   if (missingQ) { alert('Por favor responde todas las preguntas de evaluación general.'); return; }
 
   const areaObj = AREAS.find(a => a.id === area);
+  // El folio es un número al azar que viaja pegado a esta respuesta. Sirve
+  // para preguntarle después al servidor si entró, sin que él tenga que
+  // enseñar los datos de nadie para contestar. Empieza con guion bajo, así
+  // que no genera columna en la hoja.
+  const folio = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const payload = {
     _sheet: SHEET_NAME,
     _cols:  SURVEY_COLS,
+    _folio: folio,
     nombre, cargo, jefe,
     area: areaObj ? areaObj.name : area,
     isAnonymous: isAnon,
@@ -3488,24 +3763,21 @@ document.getElementById('surveyForm').addEventListener('submit', async function(
     const form = new FormData();
     form.append('payload', JSON.stringify(payload));
 
-    // Lo único que prueba el guardado es encontrar la respuesta en la hoja.
-    // Que el script conteste no prueba nada: el envío a ciegas no devuelve
-    // resultado, y así se perdieron respuestas con la pantalla de gracias
-    // puesta. Se compara por lo que escribió la persona.
+    // Lo único que prueba el guardado es que el servidor diga que la fila ya
+    // está. Que conteste "recibido" no prueba nada: el envío a ciegas no
+    // devuelve resultado, y así se perdieron respuestas con la pantalla de
+    // gracias puesta.
+    //
+    // Se pregunta por el folio, no por el contenido. Antes esto leía la hoja
+    // completa para buscarse a sí misma, y eso obligaba a dejar los datos de
+    // todas las empresas al alcance de cualquiera que tuviera la dirección.
     const yaQuedoGuardada = async function() {
       try {
-        const url = APPS_SCRIPT_URL + '?action=getData&sheet=' +
-                    encodeURIComponent(SHEET_NAME) + '&_=' + Date.now();
+        const url = APPS_SCRIPT_URL + '?action=checkSave&folio=' +
+                    encodeURIComponent(folio) + '&_=' + Date.now();
         const r = await fetch(url, { cache: 'no-store' });
         const j = await r.json();
-        if (!j || !j.success || !Array.isArray(j.data)) return false;
-        const igual = function(a, b) { return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim(); };
-        return j.data.some(function(f) {
-          return igual(f.nombre, payload.nombre) && igual(f.cargo, payload.cargo) &&
-                 igual(f.jefe, payload.jefe)     && igual(f.area, payload.area) &&
-                 igual(f.propuesta, payload.propuesta) &&
-                 igual(f.observaciones, payload.observaciones);
-        });
+        return !!(j && j.guardada);
       } catch(e) { return false; }
     };
 

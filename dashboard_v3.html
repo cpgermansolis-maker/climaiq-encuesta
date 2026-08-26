@@ -465,6 +465,77 @@ const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbxNnPykTYJc2v3UlG
 let URL_GAS = '', DATA = [], QUESTIONS = [], CHARTS = {}, lastUpdate = null;
 let AVAILABLE_SHEETS = [], CURRENT_SHEET = '';
 
+// ── LA CLAVE ────────────────────────────────────────────────
+// La dirección del servidor viene escrita dentro de la página que abre la
+// encuesta, así que es pública y no puede ser el secreto. Desde hoy el
+// servidor no entrega respuestas de nadie a quien solo tenga la dirección:
+// cada lectura va firmada con la clave, que vive en este navegador.
+function claveGuardada() {
+  return (localStorage.getItem('climaiq_clave_pub') || '').trim();
+}
+function conClave(url) {
+  const k = claveGuardada();
+  return k ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'clave=' + encodeURIComponent(k) : url;
+}
+async function apiGet(url) {
+  const res = await fetch(conClave(url), { cache: 'no-store' });
+  const json = await res.json();
+  if (json && json.needsKey) {
+    pedirClave(json.error);
+    throw new Error(json.error || 'Falta la clave de acceso.');
+  }
+  return json;
+}
+
+// Si falta la clave se pide AQUÍ, dentro de la página. Nunca con una
+// ventanita del navegador: no dice de dónde sacar el dato y no deja seguir
+// sin él. Y se guarda SOLO si el servidor la aceptó, para no dejar
+// guardada una clave equivocada que después nadie sabe por qué falla.
+function pedirClave(mensaje) {
+  if (document.getElementById('cajaClave')) return;
+  const d = document.createElement('div');
+  d.id = 'cajaClave';
+  d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(12,20,32,.72);' +
+    'display:flex;align-items:center;justify-content:center;padding:1.2rem';
+  d.innerHTML =
+    '<div style="background:#fff;max-width:430px;width:100%;border-radius:14px;padding:1.7rem 1.5rem;' +
+      'box-shadow:0 18px 50px rgba(0,0,0,.32);font-family:inherit">' +
+      '<h3 style="margin:0 0 .55rem;font-size:1.06rem;color:#1c3a5e">Clave de acceso</h3>' +
+      '<p style="margin:0 0 1.1rem;font-size:.87rem;line-height:1.6;color:#5a6472">' +
+        (mensaje ? mensaje + ' ' : '') +
+        'Es la misma clave con la que se publican las encuestas. Se captura una vez ' +
+        'y queda guardada en este navegador.</p>' +
+      '<input id="inpClaveAcceso" type="password" autocomplete="current-password" placeholder="Clave" ' +
+        'style="width:100%;padding:.68rem .8rem;border:1px solid #d7dde5;border-radius:8px;' +
+        'font:inherit;font-size:.95rem">' +
+      '<div id="errClaveAcceso" style="color:#b3261e;font-size:.82rem;margin-top:.55rem;display:none"></div>' +
+      '<button id="btnClaveAcceso" style="width:100%;margin-top:1.1rem;padding:.7rem;border:none;' +
+        'border-radius:8px;background:#1c3a5e;color:#fff;font:inherit;font-size:.93rem;cursor:pointer">Entrar</button>' +
+    '</div>';
+  document.body.appendChild(d);
+  const inp = document.getElementById('inpClaveAcceso');
+  const err = document.getElementById('errClaveAcceso');
+  const btn = document.getElementById('btnClaveAcceso');
+  const fallo = t => { err.textContent = t; err.style.display = 'block'; };
+  const entrar = async () => {
+    const v = inp.value.trim();
+    if (!v) { fallo('Escribe la clave.'); return; }
+    btn.disabled = true; btn.textContent = 'Comprobando…'; err.style.display = 'none';
+    try {
+      const r = await fetch(URL_GAS + '?action=listSheets&clave=' + encodeURIComponent(v));
+      const j = await r.json();
+      if (j.success) { localStorage.setItem('climaiq_clave_pub', v); location.reload(); return; }
+      fallo('Esa clave no es la correcta.');
+    } catch (e) {
+      fallo('No se pudo comprobar: ' + ((e && e.message) || 'falló la conexión.'));
+    }
+    btn.disabled = false; btn.textContent = 'Entrar';
+  };
+  btn.onclick = entrar;
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') entrar(); });
+  inp.focus();
+}
+
 // ── NAV ─────────────────────────────────────────────────────
 function goTo(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -523,11 +594,10 @@ async function connect() {
 async function guardarPlantillaEnHoja(plantilla) {
   if (!URL_GAS) return { ok: false, error: 'no hay conexión configurada.' };
   if (!CURRENT_SHEET) return { ok: false, error: 'no hay una encuesta seleccionada.' };
-  let clave = localStorage.getItem('climaiq_clave_pub') || '';
+  const clave = claveGuardada();
   if (!clave) {
-    clave = (prompt('Clave de publicación para guardar la plantilla en la hoja.\n\nEs la misma que usa el Panel Admin para publicar encuestas. Si la dejas vacía, la plantilla se queda solo en este navegador.') || '').trim();
-    if (!clave) return { ok: false, error: 'no se capturó la clave de publicación.' };
-    localStorage.setItem('climaiq_clave_pub', clave);
+    pedirClave('Para guardar la plantilla en la hoja hace falta la clave.');
+    return { ok: false, error: 'todavía no se ha capturado la clave de acceso.' };
   }
   try {
     const form = new FormData();
@@ -577,8 +647,7 @@ async function loadData() {
   setSt('loading','Cargando...');
   document.getElementById('btnRefresh').disabled = true;
   try {
-    const res = await fetch(urlDatos());
-    const json = await res.json();
+    const json = await apiGet(urlDatos());
     if (!json.success) throw new Error(json.error || 'Error desconocido');
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
@@ -616,8 +685,7 @@ async function refresh() {
   setSt('loading','Actualizando...');
   document.getElementById('btnRefresh').disabled = true;
   try {
-    const res = await fetch(urlDatos());
-    const json = await res.json();
+    const json = await apiGet(urlDatos());
     if (!json.success) throw new Error(json.error);
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
@@ -1705,8 +1773,7 @@ function wrapLabel(s, max) {
     if (keyInput && savedKey) keyInput.value = savedKey;
     // Cargar lista de hojas y seleccionar la primera no archivada
     try {
-      const res = await fetch(URL_GAS + '?action=listSheets');
-      const json = await res.json();
+      const json = await apiGet(URL_GAS + '?action=listSheets');
       if (json.success) {
         AVAILABLE_SHEETS = (json.sheets || []).filter(s =>
           !s.name.toUpperCase().includes('ARCHIVADA') &&
@@ -2814,8 +2881,7 @@ async function renderSelector() {
   }
   wrap.innerHTML = '<div class="banner loading"><span class="spin"></span> Cargando hojas disponibles...</div>';
   try {
-    const res = await fetch(URL_GAS + '?action=listSheets');
-    const json = await res.json();
+    const json = await apiGet(URL_GAS + '?action=listSheets');
     if (!json.success) throw new Error(json.error);
     AVAILABLE_SHEETS = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA') && !s.name.startsWith('_labels_'));
 
@@ -2859,8 +2925,7 @@ async function loadSheet(sheetName) {
   localStorage.setItem('climaiq_sheet', sheetName);
   setSt('loading', 'Cargando ' + sheetName + '...');
   try {
-    const res = await fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(sheetName));
-    const json = await res.json();
+    const json = await apiGet(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(sheetName));
     if (!json.success) throw new Error(json.error || 'Error');
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
@@ -2894,8 +2959,7 @@ async function renderComparar() {
   let sheets = AVAILABLE_SHEETS;
   if (!sheets.length) {
     try {
-      const res = await fetch(URL_GAS + '?action=listSheets');
-      const json = await res.json();
+      const json = await apiGet(URL_GAS + '?action=listSheets');
       sheets = (json.sheets || []).filter(s => !s.name.toUpperCase().includes('ARCHIVADA') && !s.name.startsWith('_labels_'));
       AVAILABLE_SHEETS = sheets;
     } catch(e) { sheets = []; }
@@ -2934,8 +2998,8 @@ async function ejecutarComparacion() {
 
   try {
     const [rA, rB] = await Promise.all([
-      fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameA)).then(r => r.json()),
-      fetch(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameB)).then(r => r.json())
+      apiGet(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameA)),
+      apiGet(URL_GAS + '?action=getData&sheet=' + encodeURIComponent(nameB))
     ]);
     if (!rA.success) throw new Error('Error en ' + nameA + ': ' + rA.error);
     if (!rB.success) throw new Error('Error en ' + nameB + ': ' + rB.error);
