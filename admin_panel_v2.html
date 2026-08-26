@@ -2462,7 +2462,12 @@ function obtenerDatos(nombreSolicitado) {
       jefe:          texto(row, indice, ['Jefe Inmediato']),
       area:          texto(row, indice, ['Área', 'Area']) || 'Sin área',
       propuesta:     texto(row, indice, ['Propuestas de mejora']),
-      observaciones: texto(row, indice, ['Observaciones'])
+      observaciones: texto(row, indice, ['Observaciones']),
+      // La hoja SIEMPRE guardó cuándo entró cada respuesta, pero esta función
+      // tiraba el dato y por eso el sistema no podía decir hace cuánto que no
+      // llega nada. El 25 de agosto la encuesta estuvo caída horas y no se
+      // notó hasta que dos personas avisaron a mano.
+      fecha:         fechaDeFila(row, indice)
     };
     for (var p = 0; p < preguntas.length; p++) {
       var val = parseInt(row[preguntas[p].col], 10);
@@ -2476,6 +2481,15 @@ function obtenerDatos(nombreSolicitado) {
     soloClaveEtiqueta.push({ key: preguntas[s].key, label: preguntas[s].label });
   }
 
+  // La última respuesta es la de la última fila con fecha, no la mayor de una
+  // comparación: las fechas se guardan como texto dd/mm/aaaa y ordenarlas como
+  // texto pone el 02/12 antes que el 30/11. Las filas se agregan al final, así
+  // que el orden de la hoja ya es el orden en que llegaron.
+  var ultima = '';
+  for (var u = filas.length - 1; u >= 0; u--) {
+    if (filas[u].fecha) { ultima = filas[u].fecha; break; }
+  }
+
   return {
     success: true,
     data: filas,
@@ -2483,8 +2497,55 @@ function obtenerDatos(nombreSolicitado) {
     total: filas.length,
     sheet: hoja.getName(),
     plantilla: leerPlantilla(hoja.getName()),
+    ultimaRespuesta: ultima,
     updatedAt: Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy HH:mm')
   };
+}
+
+// La fecha puede venir de dos formas: texto, que es como se guarda hoy, u
+// objeto Date, que es en lo que la hoja convertía el dato antes de que se
+// forzara el formato de texto. Las dos salen igual de aquí.
+function fechaDeFila(row, indice) {
+  var pos = indice[COL_FECHA];
+  if (pos === undefined) pos = indice['Timestamp'];
+  if (pos === undefined) pos = indice['Fecha'];
+  if (pos === undefined) return '';
+
+  var v = row[pos];
+  if (v === null || v === undefined || v === '') return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, ZONA, 'dd/MM/yyyy HH:mm');
+  }
+
+  var s = String(v).trim();
+
+  // Formato de hoy: 26/08/2026 15:56:12. Se recorta el segundero, que para
+  // saber cuándo llegó la última respuesta sobra. El patrón exige la fecha
+  // completa a propósito; recortar por "los dos últimos dígitos" le
+  // arrancaría los minutos a una fecha que ya viniera sin segundos.
+  var nuevo = s.match(/^(\\d{2}\\/\\d{2}\\/\\d{4} \\d{2}:\\d{2}):\\d{2}$/);
+  if (nuevo) return nuevo[1];
+
+  // Formato viejo: 17/3/2026, 4:34:54 p.m. Lo escribió una versión anterior
+  // del sistema y sigue vivo en las hojas de las encuestas de entonces. Sin
+  // esta traducción, esas hojas mostrarían la fecha en crudo y nadie podría
+  // comparar dos encuestas entre sí.
+  var viejo = s.match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4}),?\\s+(\\d{1,2}):(\\d{2})(?::\\d{2})?\\s*([ap])\\.?\\s?m\\.?$/i);
+  if (viejo) {
+    var hora = parseInt(viejo[4], 10) % 12;
+    if (viejo[6].toLowerCase() === 'p') hora += 12;
+    return dosDigitos(viejo[1]) + '/' + dosDigitos(viejo[2]) + '/' + viejo[3] +
+           ' ' + dosDigitos(String(hora)) + ':' + viejo[5];
+  }
+
+  // Cualquier otra cosa se devuelve tal cual. Vale más una fecha rara a la
+  // vista que un hueco: el hueco parece que no hay dato.
+  return s;
+}
+
+function dosDigitos(n) {
+  var s = String(n);
+  return s.length < 2 ? '0' + s : s;
 }
 
 // ── ENCUESTAS PUBLICADAS ──────────────────────────────────────

@@ -652,6 +652,7 @@ async function loadData() {
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
     PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
+    ULTIMA_RESPUESTA = json.ultimaRespuesta || '';
     lastUpdate = new Date();
     if (json.sheet) {
       CURRENT_SHEET = json.sheet;
@@ -663,7 +664,7 @@ async function loadData() {
     }
     if (!DATA.length) { setSt('ok','Sin respuestas'); setupBanner('success','Conectado. Aún no hay respuestas en la hoja.'); return; }
     renderAll();
-    setSt('ok', DATA.length + ' respuestas · En vivo');
+    setSt('ok', DATA.length + ' respuestas' + textoUltima());
     document.getElementById('btnRefresh').disabled = false;
     document.getElementById('btnPDF').disabled = false;
     document.getElementById('btnWord').disabled = false;
@@ -690,9 +691,10 @@ async function refresh() {
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
     PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
+    ULTIMA_RESPUESTA = json.ultimaRespuesta || '';
     lastUpdate = new Date();
     renderAll();
-    setSt('ok', DATA.length + ' respuestas · ' + lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+    setSt('ok', DATA.length + ' respuestas' + textoUltima());
     document.getElementById('sbFoot').innerHTML =
       `<strong>${DATA.length}</strong> respuestas<br>${getAreas().length} áreas<br><span style="color:var(--ink3)">${lastUpdate.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</span>`;
   } catch(e) { setSt('err','Error al actualizar'); }
@@ -1160,6 +1162,28 @@ function clavePlantilla(hoja) { return 'climaiq_plantilla_' + (hoja || CURRENT_S
 // copia local: guardada en la hoja sirve desde cualquier computadora, mientras
 // que la del navegador solo existe en la máquina donde se capturó.
 let PLANTILLA_HOJA = null;
+let ULTIMA_RESPUESTA = '';
+
+// "hace 3 días" salta a la vista; una fecha sola, no. La caída del 25 de
+// agosto duró horas sin que nadie la notara porque el sistema no decía esto.
+function haceCuanto(txt) {
+  const m = String(txt || '').match(/^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}))?/);
+  if (!m) return '';
+  const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
+  const min = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (!isFinite(min) || min < 0) return '';
+  if (min < 60)   return 'hace ' + min + ' min';
+  if (min < 1440) return 'hace ' + Math.floor(min / 60) + ' h';
+  const dias = Math.floor(min / 1440);
+  return 'hace ' + dias + (dias === 1 ? ' día' : ' días');
+}
+
+// Si la fecha no se entiende se muestra tal cual: vale más un dato crudo
+// que un hueco donde debía ir la única señal de que algo dejó de llegar.
+function textoUltima() {
+  if (!ULTIMA_RESPUESTA) return '';
+  return ' · última ' + (haceCuanto(ULTIMA_RESPUESTA) || ULTIMA_RESPUESTA);
+}
 function getPlantilla(hoja) {
   if (!hoja || hoja === CURRENT_SHEET) {
     if (PLANTILLA_HOJA > 0) return PLANTILLA_HOJA;
@@ -2930,6 +2954,7 @@ async function loadSheet(sheetName) {
     DATA = normalizeData(json.data || []);
     QUESTIONS = normalizeQuestions(json.questions || []);
     PLANTILLA_HOJA = parseInt(json.plantilla, 10) > 0 ? parseInt(json.plantilla, 10) : null;
+    ULTIMA_RESPUESTA = json.ultimaRespuesta || '';
     lastUpdate = new Date();
     document.getElementById('tbCompany').textContent = '· ' + sheetName;
     document.getElementById('btnPDF').disabled = false;
@@ -2937,7 +2962,7 @@ async function loadSheet(sheetName) {
     document.getElementById('btnRefresh').disabled = false;
     if (!DATA.length) { setSt('ok', 'Sin respuestas'); return; }
     renderAll();
-    setSt('ok', sheetName + ' · ' + DATA.length + ' respuestas');
+    setSt('ok', sheetName + ' · ' + DATA.length + ' respuestas' + textoUltima());
     renderSelector(); // refresh selector to show active
     goTo('overview');
   } catch(err) {
