@@ -40,6 +40,8 @@
   .enc.sel { border-color: var(--navy); box-shadow: var(--shadow-card-hover); }
   .enc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
   .enc-nom { font-size: 15.5px; font-weight: 600; letter-spacing: -.015em; line-height: 1.25; }
+  .enc-fechas { font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+  .enc-fechas b { color: var(--ink); font-weight: 600; }
   .enc-hoja { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
 
   .chip { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
@@ -274,7 +276,8 @@ async function cargar() {
     if (!hojas.success) throw new Error(hojas.error || 'No se pudieron leer las hojas.');
 
     const conteo = {};
-    (hojas.sheets || []).forEach(h => { conteo[h.name] = h.rows; });
+    (hojas.sheets || []).forEach(h => { conteo[h.name] = h; });
+    const fechas = (e, h) => { e.primera = (h && h.primera) || ''; e.ultima = (h && h.ultima) || ''; return e; };
 
     // Una hoja con respuestas que ya no tiene encuesta publicada sigue siendo
     // una encuesta: es una que ya se cerró. Si no se mostrara, desaparecería
@@ -293,13 +296,16 @@ async function cargar() {
     const vistas = {};
     ENCUESTAS = publicadas.map(s => {
       vistas[s.hoja] = true;
-      return conDatos({ id: s.id, nombre: s.nombre, hoja: s.hoja, activa: !!s.activa,
-                        actualizada: s.actualizada, respuestas: conteo[s.hoja] || 0 }, s.datos);
+      const h = conteo[s.hoja];
+      return fechas(conDatos({ id: s.id, nombre: s.nombre, hoja: s.hoja, activa: !!s.activa,
+                        cerrada: !!s.cerrada, actualizada: s.actualizada,
+                        respuestas: h ? h.rows : 0 }, s.datos), h);
     });
     (hojas.sheets || []).forEach(h => {
       if (vistas[h.name]) return;
-      ENCUESTAS.push(conDatos({ id: null, nombre: h.name, hoja: h.name, activa: false,
-                                actualizada: '', respuestas: h.rows }, null));
+      // Sin encuesta publicada nadie puede contestarla: está cerrada.
+      ENCUESTAS.push(fechas(conDatos({ id: null, nombre: h.name, hoja: h.name, activa: false,
+                                cerrada: true, actualizada: '', respuestas: h.rows }, null), h));
     });
 
     // Solo las hojas que no tienen encuesta publicada necesitan su propia
@@ -319,6 +325,34 @@ async function cargar() {
   }
 }
 
+// "hace 50 días" salta a la vista; una fecha sola, no. Es la misma cuenta que
+// usa la barra de estado del dashboard.
+function haceCuanto(txt) {
+  const m = String(txt || '').match(/^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}))?/);
+  if (!m) return '';
+  const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
+  const min = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (!isFinite(min) || min < 0) return '';
+  if (min < 60)   return 'hace ' + min + ' min';
+  if (min < 1440) return 'hace ' + Math.floor(min / 60) + ' h';
+  const dias = Math.floor(min / 1440);
+  return 'hace ' + dias + (dias === 1 ? ' día' : ' días');
+}
+const soloDia = f => String(f || '').slice(0, 10);
+
+// Cuándo se contestó. Una abierta dice hace cuánto llegó la última respuesta,
+// que es lo que avisa si se cayó o si la gente dejó de contestar. Una cerrada
+// dice en qué fechas se levantó, que es lo que hay que citar en el informe.
+function lineaFechas(e) {
+  if (!e.ultima) return e.respuestas ? 'Sin fecha de respuesta en la hoja' : 'Sin respuestas todavía';
+  if (e.cerrada) {
+    const a = soloDia(e.primera), b = soloDia(e.ultima);
+    return 'Contestada ' + (a === b ? 'el ' + esc(a) : 'del ' + esc(a) + ' al ' + esc(b));
+  }
+  const hace = haceCuanto(e.ultima);
+  return 'Última respuesta ' + esc(soloDia(e.ultima)) + (hace ? ' · <b>' + hace + '</b>' : '');
+}
+
 function pintar() {
   if (!ENCUESTAS.length) {
     $('estado').innerHTML = '<div class="aviso">Todavía no hay ninguna encuesta. ' +
@@ -334,8 +368,8 @@ function pintar() {
         '<div><div class="enc-nom">' + esc(e.nombre) + '</div>' +
         (e.hoja && e.hoja !== e.nombre ? '<div class="enc-hoja">' + esc(e.hoja) + '</div>' : '') +
         '</div>' +
-        '<span class="chip ' + (e.activa ? 'abierta' : 'cerrada') + '">' +
-          (e.activa ? 'Abierta' : 'Cerrada') + '</span>' +
+        '<span class="chip ' + (e.cerrada ? 'cerrada' : 'abierta') + '">' +
+          (e.cerrada ? 'Cerrada' : 'Abierta') + '</span>' +
       '</div>' +
       '<div class="cifras">' +
         '<span class="n">' + e.respuestas +
@@ -345,9 +379,10 @@ function pintar() {
       '<div class="barra"><i style="width:' + (pct === null ? 0 : Math.min(100, pct)) + '%"></i></div>' +
       (e.plantilla ? '' :
         '<div class="sinplantilla">Falta capturar cuántas personas trabajan aquí</div>') +
+      '<div class="enc-fechas">' + lineaFechas(e) + '</div>' +
       (e.cierre || e.responsable ?
-        '<div class="enc-hoja" style="margin-top:10px">' +
-          (e.cierre ? 'Cierra el ' + esc(e.cierre) : '') +
+        '<div class="enc-hoja" style="margin-top:4px">' +
+          (e.cierre ? (e.cerrada ? 'Cerró el ' : 'Cierra el ') + esc(e.cierre) : '') +
           (e.cierre && e.responsable ? ' · ' : '') +
           esc(e.responsable) +
         '</div>' : '') +
@@ -388,7 +423,7 @@ async function abrir(hoja) {
   $('detalle').innerHTML =
     '<div class="det">' +
       '<h2>' + esc(e.nombre) + '</h2>' +
-      '<p class="sub">' + (e.activa ? 'Abierta' : 'Cerrada') +
+      '<p class="sub">' + (e.cerrada ? 'Cerrada' : 'Abierta') + ' · ' + lineaFechas(e) +
         (e.actualizada ? ' · actualizada ' + esc(e.actualizada) : '') + '</p>' +
 
       '<div class="sec">' +
@@ -430,6 +465,19 @@ async function abrir(hoja) {
         '</div>' +
       '</div>' : '') +
 
+      // Solo se puede cerrar lo que está publicado. Una hoja sin encuesta
+      // publicada ya no tiene liga que cerrar.
+      (e.id ?
+      '<div class="sec">' +
+        '<span class="eyebrow">' + (e.cerrada ? 'Reabrir la encuesta' : 'Cerrar la encuesta') + '</span>' +
+        '<p class="sub" style="margin-bottom:10px">' + (e.cerrada
+          ? 'La liga está cerrada: quien la abra ve que la encuesta ya terminó. Reabrirla la vuelve a poner a contestar.'
+          : 'Al cerrarla, quien abra la liga verá que la encuesta ya terminó, y la fecha de cierre queda con el día de hoy. Las respuestas no se tocan.') +
+        '</p>' +
+        '<button class="btn outline" id="btnCerrar">' + (e.cerrada ? 'Reabrir encuesta' : 'Cerrar encuesta') + '</button>' +
+        '<div id="avisoCerrar"></div>' +
+      '</div>' : '') +
+
       '<div class="sec">' +
         '<span class="eyebrow">Participación por área</span>' +
         (porArea.length ?
@@ -457,6 +505,8 @@ async function abrir(hoja) {
   if (bp) bp.onclick = () => guardarPlantilla(hoja);
   const bd = $('btnDatos');
   if (bd) bd.onclick = () => guardarDatos(hoja);
+  const bx = $('btnCerrar');
+  if (bx) bx.onclick = () => cerrar(hoja, bx);
   const bc = $('btnCopiar');
   if (bc) bc.onclick = () => {
     const c = $('inpLiga');
@@ -590,6 +640,51 @@ async function guardarDatos(hoja) {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Guardar';
+  }
+}
+
+// Dos pasos y dentro de la pantalla: el primer clic pregunta, el segundo
+// cierra. Cerrar por un clic perdido dejaría a alguien sin poder contestar.
+async function cerrar(hoja, btn) {
+  const e = ENCUESTAS.filter(x => x.hoja === hoja)[0];
+  if (!e || !e.id) return;
+  const cerrarla = !e.cerrada;
+  if (!btn.dataset.seguro) {
+    btn.dataset.seguro = '1';
+    btn.className = 'btn primary';
+    btn.textContent = cerrarla ? 'Sí, cerrarla: nadie más podrá contestar' : 'Sí, reabrirla';
+    return;
+  }
+  if (!CLAVE) { avisoClave('Para cerrar la encuesta falta capturar la clave de publicación.', 'avisoCerrar'); return; }
+
+  btn.disabled = true;
+  btn.textContent = cerrarla ? 'Cerrando…' : 'Reabriendo…';
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({ _op: 'closeSurvey', _clave: CLAVE, id: e.id, cerrar: cerrarla }));
+    const json = await (await fetch(URL_GAS, { method: 'POST', body: form })).json();
+    if (json && json.success) {
+      e.cerrada = !!json.cerrada;
+      if (json.cerrada) e.activa = false;
+      e.cierre = (json.datos && json.datos.cierre) || '';
+      toast(e.cerrada ? 'Encuesta cerrada' : 'Encuesta reabierta');
+      abrir(hoja);
+      return;
+    }
+    const error = (json && json.error) || 'No se pudo cambiar.';
+    if (/clave/i.test(error)) {
+      CLAVE = '';
+      localStorage.removeItem('climaiq_clave_pub');
+      avisoClave('La clave guardada no es la correcta.', 'avisoCerrar');
+      return;
+    }
+    throw new Error(error);
+  } catch (err) {
+    toast('No se pudo: ' + err.message);
+    btn.disabled = false;
+    delete btn.dataset.seguro;
+    btn.className = 'btn outline';
+    btn.textContent = cerrarla ? 'Cerrar encuesta' : 'Reabrir encuesta';
   }
 }
 

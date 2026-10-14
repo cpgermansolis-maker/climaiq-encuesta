@@ -93,6 +93,18 @@ async function abrirEncuesta() {
     if (!res.ok) throw new Error('El servidor respondió ' + res.status + '.');
 
     const json = await res.json();
+    // Cerrada no es una falla: no se ofrece reintentar ni se manda a avisar a
+    // Recursos Humanos, porque no hay nada que arreglar.
+    if (json.cerrada) {
+      document.getElementById('pantalla').innerHTML =
+        '<div class="card" style="border-top-color:var(--navy)">' +
+          '<div class="eyebrow">Encuesta de Clima Laboral</div>' +
+          '<h1 style="color:var(--navy)">Esta encuesta ya cerró</h1>' +
+          '<p>' + escHtml(json.nombre || 'La encuesta') + ' ya no recibe respuestas. ' +
+          'Gracias por tu interés.</p>' +
+        '</div>';
+      return;
+    }
     if (!json.success) throw new Error(json.error || 'No se pudo leer la encuesta.');
     if (!json.html)    throw new Error('La encuesta llegó vacía.');
 

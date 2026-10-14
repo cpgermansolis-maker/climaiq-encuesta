@@ -2181,6 +2181,11 @@ var HOJA_ENCUESTAS = '_encuestas';
 // encuesta con logo pesa más que eso: se guarda partida en varias.
 var MAX_CELDA = 45000;
 var COLS_ENCUESTA = ['id', 'nombre', 'hoja', 'activa', 'actualizada'];
+// La columna "activa" tiene tres valores. SI: es la que abre la liga corta.
+// NO: sigue recibiendo respuestas por su propia liga. CERRADA: ya no entrega
+// el formulario. Antes solo existían SI y NO, y "cerrar" una encuesta era
+// quitarle la liga corta: su liga propia seguía contestando.
+var CERRADA = 'CERRADA';
 // ── LA LLAVE ──────────────────────────────────────────────────
 // La clave YA NO VIVE EN ESTE ARCHIVO. Vive en Propiedades del script,
 // dentro del proyecto de Google:
@@ -2267,6 +2272,10 @@ function doPost(e) {
     if (data._op === 'deleteSurvey') return responder(borrarEncuesta(data));
     if (data._op === 'setPlantilla') return responder(guardarPlantilla(data));
     if (data._op === 'setDatosEncuesta') return responder(guardarDatosEncuesta(data));
+    if (data._op === 'closeSurvey')  return responder(cerrarEncuesta(data));
+    // Una respuesta a una encuesta cerrada SÍ se guarda. Llega de alguien que
+    // abrió el formulario antes del cierre; tirarla sería perder un dato sin
+    // que esa persona se entere.
     var hoja = guardarRespuesta(data);
     return responder({ success: true, sheet: hoja });
   } catch (err) {
@@ -2620,6 +2629,11 @@ function guardarEncuesta(data) {
   hoja.getRange(fila, 1, 1, hoja.getMaxColumns()).setNumberFormat('@');
 
   var activa = data.activa === false ? 'NO' : 'SI';
+  // Volver a publicar una encuesta cerrada (para corregir un texto, por
+  // ejemplo) no la reabre. Reabrirla es una decisión aparte, en Encuestas.
+  if (fila <= hoja.getLastRow() && String(hoja.getRange(fila, 4).getValue()).toUpperCase() === CERRADA) {
+    activa = CERRADA;
+  }
   hoja.getRange(fila, 1, 1, COLS_ENCUESTA.length).setValues([[
     id,
     String(data.nombre || id),
@@ -2636,7 +2650,36 @@ function guardarEncuesta(data) {
   // Solo una encuesta contesta el link corto sin parámetro
   if (activa === 'SI') desactivarOtras(hoja, fila);
 
-  return { success: true, id: id, nombre: String(data.nombre || id), activa: activa === 'SI', partes: trozos.length };
+  return { success: true, id: id, nombre: String(data.nombre || id), activa: activa === 'SI',
+           cerrada: activa === CERRADA, partes: trozos.length };
+}
+
+// Cierra o reabre. Al cerrar, la fecha de cierre del registro queda con el día
+// de hoy: es el dato que después dice hasta cuándo se pudo contestar. Al
+// reabrir se vacía, para que la tarjeta no anuncie un cierre que ya pasó.
+function cerrarEncuesta(data) {
+  if (String(data._clave || '') !== claveAdmin()) {
+    return { success: false, error: 'Clave de publicación incorrecta.' };
+  }
+  var hoja = hojaEncuestas(false);
+  var fila = hoja ? filaDeEncuesta(hoja, idEncuesta(data.id)) : 0;
+  if (!fila) return { success: false, error: 'No se encontró esa encuesta.' };
+
+  var cerrar = data.cerrar !== false;
+  hoja.getRange(fila, 4).setValue(cerrar ? CERRADA : 'NO');
+
+  var nombreHoja = limpiar(String(hoja.getRange(fila, 3).getValue()));
+  var reg = hojaPlantillas(true);
+  var f = filaDatos(reg, nombreHoja);
+  if (!f) {
+    f = Math.max(2, reg.getLastRow() + 1);
+    reg.getRange(f, 1, 1, COLS_DATOS.length).setNumberFormat('@');
+    reg.getRange(f, 1).setValue(nombreHoja);
+  }
+  reg.getRange(f, 5).setNumberFormat('@');
+  reg.getRange(f, 5).setValue(cerrar ? Utilities.formatDate(new Date(), ZONA, 'dd/MM/yyyy') : '');
+
+  return { success: true, id: idEncuesta(data.id), cerrada: cerrar, datos: leerDatos(nombreHoja) };
 }
 
 function desactivarOtras(hoja, filaViva) {
@@ -2673,15 +2716,32 @@ function obtenerEncuesta(id, conConfig) {
     fila = filaDeEncuesta(hoja, idEncuesta(id));
     if (!fila) return { success: false, error: 'No existe la encuesta "' + id + '".' };
   } else {
-    // Sin parámetro se contesta con la activa; si ninguna lo está, la más reciente
+    // Sin parámetro se contesta con la activa; si ninguna lo está, la más
+    // reciente que no esté cerrada; si todas lo están, la última, que dirá
+    // que ya cerró.
     var ultima = hoja.getLastRow();
-    for (var f = 2; f <= ultima; f++) {
-      if (String(hoja.getRange(f, 4).getValue()).toUpperCase() === 'SI') { fila = f; break; }
+    var estados = hoja.getRange(2, 4, ultima - 1, 1).getValues();
+    for (var f = 0; f < estados.length; f++) {
+      if (String(estados[f][0]).toUpperCase() === 'SI') { fila = f + 2; break; }
+    }
+    for (var g = estados.length - 1; !fila && g >= 0; g--) {
+      if (String(estados[g][0]).toUpperCase() !== CERRADA) fila = g + 2;
     }
     if (!fila) fila = ultima;
   }
 
   var datos = hoja.getRange(fila, 1, 1, COLS_ENCUESTA.length).getValues()[0];
+
+  // Cerrada: al trabajador se le dice eso y nada más. Quien tiene la clave
+  // (conConfig) sí la recibe completa, para poder corregirla o reabrirla.
+  if (String(datos[3]).toUpperCase() === CERRADA && !conConfig) {
+    return {
+      success: false,
+      cerrada: true,
+      nombre: String(datos[1]),
+      error: 'La encuesta "' + String(datos[1]) + '" ya cerró y no recibe más respuestas.'
+    };
+  }
   var contenido = contenidoDeFila(hoja, fila);
   if (!contenido) return { success: false, error: 'La encuesta está registrada pero sin contenido.' };
 
@@ -2698,6 +2758,7 @@ function obtenerEncuesta(id, conConfig) {
     nombre: String(datos[1]),
     hoja: String(datos[2]),
     activa: String(datos[3]).toUpperCase() === 'SI',
+    cerrada: String(datos[3]).toUpperCase() === CERRADA,
     actualizada: String(datos[4]),
     config: conConfig ? (obj.config || null) : undefined,
     html: obj.html || ''
@@ -2719,6 +2780,7 @@ function listarEncuestas() {
       nombre: String(filas[i][1]),
       hoja: String(filas[i][2]),
       activa: String(filas[i][3]).toUpperCase() === 'SI',
+      cerrada: String(filas[i][3]).toUpperCase() === CERRADA,
       actualizada: String(filas[i][4]),
       datos: registro[limpiar(String(filas[i][2]))] || null
     });
@@ -2909,9 +2971,41 @@ function listarHojas() {
     if (n.charAt(0) === '_') continue;
     if (n.toUpperCase().indexOf('ARCHIVADA') !== -1) continue;
     if (todas[i].isSheetHidden()) continue;
-    salida.push({ name: n, rows: Math.max(0, todas[i].getLastRow() - 1) });
+    var rango = fechasDeHoja(todas[i]);
+    salida.push({ name: n, rows: Math.max(0, todas[i].getLastRow() - 1),
+                  primera: rango.primera, ultima: rango.ultima });
   }
   return salida;
+}
+
+// Cuándo entró la primera y la última respuesta de una hoja. Se lee SOLO la
+// columna de la fecha, no la hoja entera: esto corre una vez por encuesta
+// cada vez que se abre la pantalla de Encuestas.
+//
+// Sin este dato la tarjeta de Grupo TODA se veía igual que una de esta semana,
+// y nadie notó en cinco meses que se había levantado en marzo.
+function fechasDeHoja(hoja) {
+  var vacio = { primera: '', ultima: '' };
+  var ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2 || hoja.getLastColumn() < 1) return vacio;
+  var encabezados = leerEncabezados(hoja);
+  var indice = {};
+  for (var i = 0; i < encabezados.length; i++) indice[encabezados[i]] = i;
+  var pos = indice[COL_FECHA];
+  if (pos === undefined) pos = indice['Timestamp'];
+  if (pos === undefined) pos = indice['Fecha'];
+  if (pos === undefined) return vacio;
+
+  var col = hoja.getRange(2, pos + 1, ultimaFila - 1, 1).getValues();
+  var fechas = [];
+  for (var f = 0; f < col.length; f++) {
+    var fila = [];
+    fila[pos] = col[f][0];
+    var t = fechaDeFila(fila, indice);
+    if (t) fechas.push(t);
+  }
+  // El orden de la hoja es el orden de llegada (ver obtenerDatos)
+  return fechas.length ? { primera: fechas[0], ultima: fechas[fechas.length - 1] } : vacio;
 }
 
 function primeraHojaVisible(ss) {
