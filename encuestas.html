@@ -442,15 +442,24 @@ async function abrir(hoja) {
       '<div class="sec">' +
         '<span class="eyebrow">Registro de la encuesta</span>' +
         '<div class="fila">' +
+          // Sin apertura capturada se propone el día de la primera respuesta: es
+          // lo más cercano que guarda la hoja. Se marca como propuesta y no se
+          // escribe en la hoja hasta que alguien la guarde, porque no es la
+          // fecha en que se mandó la liga.
           '<div class="campo"><label>Se abrió el</label>' +
-            '<input class="input" type="date" id="inpApertura" value="' + esc(aIso(e.apertura)) + '"></div>' +
-          '<div class="campo"><label>Cierra el</label>' +
+            '<input class="input" type="date" id="inpApertura" value="' +
+              esc(aIso(e.apertura || soloDia(e.primera))) + '"></div>' +
+          '<div class="campo"><label>' + (e.cerrada ? 'Cerró el' : 'Cierra el') + '</label>' +
             '<input class="input" type="date" id="inpCierre" value="' + esc(aIso(e.cierre)) + '"></div>' +
           '<div class="campo" style="flex:1;min-width:200px"><label>Responsable</label>' +
             '<input class="input" id="inpResponsable" style="width:100%" placeholder="Ej: Recursos Humanos" ' +
               'value="' + esc(e.responsable) + '"></div>' +
           '<button class="btn primary" id="btnDatos">Guardar</button>' +
         '</div>' +
+        (!e.apertura && e.primera ?
+          '<p class="sub" style="margin-top:9px;color:var(--warn,#9a6700)">La apertura no se había capturado: ' +
+            'se propone el ' + esc(soloDia(e.primera)) + ', el día de la primera respuesta. ' +
+            'Corrígela si la liga se mandó antes y dale Guardar para dejarla fija.</p>' : '') +
         '<p class="sub" style="margin-top:9px">Queda guardado junto a las respuestas. ' +
           'La fecha de cierre es la referencia para saber si todavía se puede contestar.</p>' +
         '<div id="avisoDatos"></div>' +
