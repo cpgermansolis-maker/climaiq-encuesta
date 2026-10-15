@@ -1784,6 +1784,15 @@ function wrapLabel(s, max) {
   return lines;
 }
 
+// "15/10/2026 09:16" → "202610150916", para comparar fechas como texto.
+// listSheets las manda así; si llega otra cosa, cuenta como sin fecha.
+function ordenFecha(f) {
+  const m = String(f || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  const d2 = n => (n.length < 2 ? '0' : '') + n;
+  return m[3] + d2(m[2]) + d2(m[1]) + d2(m[4]) + m[5];
+}
+
 // ── BOOT ────────────────────────────────────────────────────
 (async function boot() {
   const saved = HARDCODED_URL || localStorage.getItem('climaiq_gas_url') || '';
@@ -1807,9 +1816,16 @@ function wrapLabel(s, max) {
           // Si vienes de otra pantalla con una encuesta en la mano, esa manda.
           // Sin esto el dashboard abría la última que se hubiera visto, así que
           // desde Encuestas podías pedir Grupo TODA y aterrizar en el taller.
+          // Sin encuesta pedida, abre la que recibió la respuesta más reciente:
+          // recordar la última vista dejaba a Arrendadora (cerrada) tapando a
+          // FORTRACK mientras FORTRACK estaba recibiendo respuestas.
           const pedida = new URLSearchParams(location.search).get('sheet') || '';
           const recordada = localStorage.getItem('climaiq_sheet') || '';
+          const masReciente = AVAILABLE_SHEETS
+            .filter(s => ordenFecha(s.ultima))
+            .reduce((a,b) => (!a || ordenFecha(b.ultima) > ordenFecha(a.ultima)) ? b : a, null);
           const elegida = AVAILABLE_SHEETS.find(s => s.name === pedida)
+                       || masReciente
                        || AVAILABLE_SHEETS.find(s => s.name === recordada)
                        || AVAILABLE_SHEETS.reduce((a,b) => b.rows > a.rows ? b : a);
           await loadSheet(elegida.name);
