@@ -3189,7 +3189,10 @@ function importConfig(e) {
     try {
       const parsed = JSON.parse(ev.target.result);
       S = deepMerge(DEFAULT_STATE, parsed);
-      saveState(); applyStateToUI();
+      // Primero se pinta y después se guarda. saveState() lee la pantalla: al
+      // revés, los campos todavía vacíos borraban el nombre y la bienvenida que
+      // traía el archivo (14/10/2026, al importar FORTRACK).
+      applyStateToUI(); saveState();
       toast('Configuración importada correctamente', 'success');
     } catch(err) { toast('Archivo inválido', 'error'); }
   };
